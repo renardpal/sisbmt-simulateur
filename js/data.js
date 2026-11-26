@@ -110,29 +110,6 @@ window.DEFAULT_STATE = {
   /* ---------------- Clé de répartition ---------------- */
   cle: { pop: 50, enf: 50 },
 
-  /* ---------------- Transport ---------------- */
-  // Chaque service a un mode par année (2026 = situation actuelle). Quand le mode
-  // d'une année diffère de 2026, l'écart de coût calculé est ajouté au budget de
-  // cette année (au prorata de septembre la première année si « prorata »).
-  transport: [
-    {
-      id: "navette", nom: "Navette méridienne (bus du syndicat → cantine)",
-      modes: { 2026: "regie", 2027: "regie", 2028: "regie", 2029: "regie" }, prorata: true,
-      commun: { jours: 140, km: 12, eleves: 35 },
-      regie: { conso: 25, prixCarb: 1.8, entretien: 3000, assurance: 1200, hCond: 1, hAcc: 1, coutH: 24, provision: 0, recettes: 0 },
-      prestataire: { forfaitJour: 110, prixKm: 0, hAcc: 1, coutH: 24, recettes: 0 },
-      region: { partEleve: 0, hAcc: 0, coutH: 24, recettes: 0 },
-    },
-    {
-      id: "ramassage", nom: "Ramassage scolaire matin / soir",
-      modes: { 2026: "region", 2027: "region", 2028: "region", 2029: "region" }, prorata: true,
-      commun: { jours: 140, km: 60, eleves: 30 },
-      regie: { conso: 28, prixCarb: 1.8, entretien: 4000, assurance: 1500, hCond: 3, hAcc: 2, coutH: 24, provision: 0, recettes: 40000 },
-      prestataire: { forfaitJour: 220, prixKm: 0, hAcc: 2, coutH: 24, recettes: 0 },
-      region: { partEleve: 0, hAcc: 2, coutH: 24, recettes: 2300 },
-    },
-  ],
-
   /* ---------------- Paramètres ---------------- */
   hyp: {
     // Participation par enfant facturée aux communes hors membre (€/enfant/an).
@@ -152,11 +129,6 @@ window.DEFAULT_STATE = {
     { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
   ],
 
-  /* ---------------- Points à vérifier ---------------- */
-  checklist: {
-    enfants: false, transportOrga: false, transportCouts: false, region: false,
-    personnel: false, assuranceBus: false, remboursements: false, fdr: false, cle: false,
-  },
 };
 
 // Pré-remplissage des années suivantes : même montant qu'en 2026 (0 pour les lignes ponctuelles).

@@ -6,11 +6,9 @@ Site statique : HTML, CSS et JavaScript, sans dépendance ni compilation, héber
 
 | Onglet | Contenu |
 |---|---|
-| **Synthèse** | Cotisations par année, évolution par commune d'une année sur l'autre, cotisation par enfant |
-| **Communes & cotisations** | Clé de répartition (50/50), effectifs par commune et par année (avec projection « Évol./an »), communes hors membre (facturées ou non), coût moyen par enfant, détail par commune et par service, calcul pas à pas de chaque cotisation |
-| **2026 · 2027 · 2028 · 2029** | Le budget de l'année, ligne par ligne. 2026 = proposition d'origine ; les années suivantes sont pré-remplies avec les montants 2026 (lignes ponctuelles à 0) et se modifient directement. Boutons « recopier l'année précédente » et « appliquer +x % » |
-| **Transport** | Mode de chaque service, année par année (régie, prestataire, Région, supprimé). L'écart de coût avec 2026 s'ajoute au budget de l'année concernée |
-| **Données à compléter** | Liste de contrôle des informations absentes du budget, clé de ventilation du personnel |
+| **Synthèse** | Cotisations 2025 (BP) à 2029, origine de la hausse 2025 → 2026, évolution par commune, poids de la cotisation dans le budget de chaque commune, cotisation par enfant |
+| **Communes & cotisations** | Clé de répartition (50/50), effectifs par commune et par année, communes hors membre, budget de chaque commune, postes du personnel, coût par enfant (camemberts), calcul pas à pas de chaque cotisation |
+| **2026 · 2027 · 2028 · 2029** | Le budget de l'année, ligne par ligne. 2026 = proposition d'origine ; les années suivantes sont pré-remplies avec les montants 2026 (lignes ponctuelles à 0) et se modifient directement |
 
 ### Calcul des cotisations
 
