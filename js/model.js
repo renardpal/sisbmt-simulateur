@@ -16,6 +16,7 @@
     ELU: { lib: "Élus", color: "#a3a03a" },
     FIN: { lib: "Opérations financières", color: "#999999" },
     FDR: { lib: "Fonds de roulement", color: "#cfcfcf" },
+    HORS: { lib: "Participations des communes hors membre", color: "#b9b9b9" },
   };
   const CHAP_LIB = {
     "002": "Résultat reporté", "023": "Virement à l'investissement", "011": "Charges à caractère général",
@@ -26,6 +27,21 @@
   const n = (v) => (typeof v === "number" && isFinite(v) ? v : parseFloat(v) || 0);
   const enfantsDe = (c, y) => n(c.enfants && c.enfants[y] != null ? c.enfants[y] : c.enfants && c.enfants[2026]);
   const montantDe = (l, y) => n(l.montants && l.montants[y] != null ? l.montants[y] : l.montant);
+
+  // Répartition du personnel entre services : au prorata des heures des postes
+  function ventiler(state, analytique) {
+    const out = { ...analytique };
+    const key = {};
+    if (Array.isArray(state.postes) && state.postes.length) state.postes.forEach((p) => (key[p.cat] = (key[p.cat] || 0) + n(p.heures)));
+    else Object.assign(key, (state.hyp && state.hyp.cleCalculPersonnel) || {});
+    const keyTot = Object.values(key).reduce((s, v) => s + n(v), 0);
+    if (keyTot > 0) {
+      const per = out.PER;
+      out.PER = 0;
+      for (const k in key) out[k] = (out[k] || 0) + per * n(key[k]) / keyTot;
+    }
+    return out;
+  }
 
   /* ---------- Une année ---------- */
   function computeYear(state, y) {
@@ -49,7 +65,7 @@
       return { id: h.id, nom: h.nom, enf: e, facturee: !!h.facturee, participation: h.facturee ? e * tarif : 0 };
     });
     for (const h of horsDetail)
-      if (h.participation > 0.005) lignes.push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation ${h.nom} (${h.enf} enfant${h.enf > 1 ? "s" : ""} × ${tarif} €)`, cat: "FIN", v: h.participation });
+      if (h.participation > 0.005) lignes.push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation ${h.nom} (${h.enf} enfant${h.enf > 1 ? "s" : ""} × ${tarif} €)`, cat: "HORS", v: h.participation });
 
     const dep = lignes.filter((l) => l.sens === "dep").reduce((s, l) => s + l.v, 0);
     const recAutres = lignes.filter((l) => l.sens === "rec").reduce((s, l) => s + l.v, 0);
@@ -73,17 +89,7 @@
     Object.keys(CATS).forEach((k) => (analytique[k] = 0));
     for (const l of lignes) analytique[l.cat] = (analytique[l.cat] || 0) + (l.sens === "dep" ? l.v : -l.v);
     analytique.FDR = variationFdr;
-    const analytiqueVentile = { ...analytique };
-    // Répartition du personnel : au prorata des heures des postes (sinon ancienne clé en %)
-    const key = {};
-    if (Array.isArray(state.postes) && state.postes.length) state.postes.forEach((p) => (key[p.cat] = (key[p.cat] || 0) + n(p.heures)));
-    else Object.assign(key, (state.hyp && state.hyp.cleCalculPersonnel) || {});
-    const keyTot = Object.values(key).reduce((s, v) => s + n(v), 0);
-    if (keyTot > 0) {
-      const per = analytiqueVentile.PER;
-      analytiqueVentile.PER = 0;
-      for (const k in key) analytiqueVentile[k] += per * n(key[k]) / keyTot;
-    }
+    const analytiqueVentile = ventiler(state, analytique);
 
     // Coûts moyens par enfant accueilli (membres + hors membre)
     const recHors = horsDetail.reduce((s, h) => s + h.participation, 0);
@@ -118,15 +124,35 @@
     const fdr = besoin - dep + recAutres + report; // excédent prévu au BP
     const membres = state.communes.filter((c) => c.statut === "membre");
     const popTot = membres.reduce((s, c) => s + n(c.pop), 0) || 1;
+    // Effectifs 2025 inconnus : on reprend ceux de l'année de base
     const enf = membres.reduce((s, c) => s + enfantsDe(c, base), 0);
+    const enfHors = (Array.isArray(state.horsMembres) ? state.horsMembres : []).reduce((s, h) => s + enfantsDe(h, base), 0);
+    const enfTotal = enf + enfHors;
     const wP = n(state.cle.pop) / 100, wE = n(state.cle.enf) / 100;
     const communes = membres.map((c) => {
-      const e = enfantsDe(c, base), share = wP * n(c.pop) / popTot + wE * e / (enf || 1);
+      const e = enfantsDe(c, base), sp = n(c.pop) / popTot, se = e / (enf || 1);
+      const shareCle = wP * sp + wE * se;
       const saisi = c.cotis2025 != null && c.cotis2025 !== "";
-      return { id: c.id, nom: c.nom, pop: n(c.pop), enf: e, share, cotis: saisi ? n(c.cotis2025) : besoin * share, estime: !saisi };
+      const cotis = saisi ? n(c.cotis2025) : besoin * shareCle;
+      const k = shareCle ? cotis / (besoin * shareCle) : 0; // répartit un montant saisi entre part pop. / enfants
+      return { id: c.id, nom: c.nom, pop: n(c.pop), enf: e, sp, se, share: besoin ? cotis / besoin : 0, partPop: besoin * wP * sp * k, partEnf: besoin * wE * se * k, cotis, estime: !saisi };
     });
+    // Coût net par service (BP 2025)
+    const analytique = {};
+    Object.keys(CATS).forEach((k) => (analytique[k] = 0));
+    for (const l of state.lignes) {
+      if (l.nature === "report" || l.nature === "cotisations") continue;
+      analytique[l.cat] = (analytique[l.cat] || 0) + (l.sens === "dep" ? bp(l) : -bp(l));
+    }
+    analytique.FDR = fdr - report;
+    const analytiqueVentile = ventiler(state, analytique);
+    const coutNet = dep - recAutres;
     const chap = (sens, f) => state.lignes.filter((l) => l.sens === sens && f(l)).reduce((s, l) => s + bp(l), 0);
-    return { y, histo: true, dep, recAutres, report, fdr, variationFdr: fdr - report, besoin, popTot, enf, communes, chap };
+    return {
+      y, histo: true, dep, recAutres, report, fdr, variationFdr: fdr - report, besoin, popTot, enf, enfHors, enfTotal, communes, chap,
+      horsDetail: [], recHors: 0, coutNet, coutBrutEnfant: dep / (enfTotal || 1), coutNetEnfant: coutNet / (enfTotal || 1),
+      horsCharge: (coutNet / (enfTotal || 1)) * enfHors, horsResteMembres: (coutNet / (enfTotal || 1)) * enfHors, analytique, analytiqueVentile,
+    };
   }
 
   function compute(state) {
