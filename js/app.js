@@ -30,6 +30,24 @@
       if (!Array.isArray(s.horsMembres) || s.horsMembres.every((h) => /^Commune hors membre/.test(h.nom))) s.horsMembres = clone(window.DEFAULT_STATE.horsMembres);
       s.version = 8;
     }
+    if (s && s.version === 8) {
+      // Prix du repas mis à jour (achat 4,05 €, vente 5 €) pour 2027-2029, si non modifiés
+      const def = window.DEFAULT_STATE.lignes;
+      ["d6288", "r7067"].forEach((id) => {
+        const l = (s.lignes || []).find((x) => x.id === id), d = def.find((x) => x.id === id);
+        if (!l || !d) return;
+        [2027, 2028, 2029].forEach((y) => { if (l.montants && +l.montants[y] === +l.montant) l.montants[y] = d.montants[y]; });
+        l.com = d.com;
+      });
+      s.version = 9;
+    }
+    if (s && s.version === 9) {
+      // Conductrice : 30 min de conduite par jour, le reste en classe / cantine
+      const ps = s.postes || [];
+      const i = ps.findIndex((p) => p.id === "p2" && p.cat === "TRA" && +p.heures === 15);
+      if (i >= 0) ps.splice(i, 1, ...clone(window.DEFAULT_STATE.postes.filter((p) => ["p2", "p5", "p6"].includes(p.id))));
+      s.version = 10;
+    }
     return s;
   }
   function load() {

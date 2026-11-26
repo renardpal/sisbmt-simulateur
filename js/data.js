@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 8,
+  version: 10,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -48,7 +48,7 @@ window.DEFAULT_STATE = {
     { id: "d6261", sens: "dep", chap: "011", art: "6261", lib: "Frais d'affranchissement", bp25: 85, real25: 0, montant: 100, cat: "ADM", com: "" },
     { id: "d6262", sens: "dep", chap: "011", art: "6262", lib: "Frais de télécommunications", bp25: 1400, real25: 1581.52, montant: 1800, cat: "ADM", com: "2 abonnements fibre + 1 portable" },
     { id: "d6281", sens: "dep", chap: "011", art: "6281", lib: "Concours divers – cotisations", bp25: 0, real25: 0, montant: 320, cat: "ADM", com: "AGEDI logiciel syndicat" },
-    { id: "d6288", sens: "dep", chap: "011", art: "6288", lib: "Autres services extérieurs (repas cantine)", bp25: 18500, real25: 18248.85, montant: 19000, cat: "RES", com: "repas cantine – EHPAD Thizy" },
+    { id: "d6288", sens: "dep", chap: "011", art: "6288", lib: "Autres services extérieurs (repas cantine)", bp25: 18500, real25: 18248.85, montant: 19000, montants: { 2026: 19000, 2027: 21663.45, 2028: 21663.45, 2029: 21663.45 }, cat: "RES", com: "repas EHPAD Thizy – 4,05 €/repas × 5349 repas à partir de 2027" },
 
     { id: "d6336", sens: "dep", chap: "012", art: "6336", lib: "Cotisations CNFPT et CDG FPT", bp25: 1040, real25: 975, montant: 1000, cat: "PER", com: "" },
     { id: "d64111", sens: "dep", chap: "012", art: "64111", lib: "Rémunération principale titulaires", bp25: 30100, real25: 28422.87, montant: 29000, cat: "PER", com: "net + prévoyance + IRCANTEC + RAFP + URSSAF" },
@@ -72,7 +72,7 @@ window.DEFAULT_STATE = {
 
     // ----- Recettes -----
     { id: "r002", sens: "rec", chap: "002", art: "002", lib: "Résultat de fonctionnement reporté", bp25: 18505.12, real25: 0, montant: 0, cat: "FIN", nature: "report", com: "Calculé : fonds de roulement de l'année précédente" },
-    { id: "r7067", sens: "rec", chap: "70", art: "7067", lib: "Redevances services périscolaires (cantine)", bp25: 19500, real25: 20665.8, montant: 23000, cat: "RES", com: "4,30 €/repas, sans augmentation" },
+    { id: "r7067", sens: "rec", chap: "70", art: "7067", lib: "Redevances services périscolaires (cantine)", bp25: 19500, real25: 20665.8, montant: 23000, montants: { 2026: 23000, 2027: 26745.0, 2028: 26745.0, 2029: 26745.0 }, cat: "RES", com: "repas vendu 5 € (4,30 € au BP 2026) × 5349 repas à partir de 2027" },
     { id: "r70878", sens: "rec", chap: "70", art: "70878", lib: "Remboursements de frais par des tiers", bp25: 4135, real25: 4526.46, montant: 9500, cat: "ADM", com: "CCS bus, bâtiment, Coutarnoux et Marmeaux – à ventiler" },
     { id: "r7472", sens: "rec", chap: "74", art: "7472", lib: "Participation Région", bp25: 44000, real25: 26226.3, montant: 2300, cat: "TRA", com: "personnel dans le bus et RC" },
     { id: "r74748", sens: "rec", chap: "74", art: "74748", lib: "Participation des communes membres", bp25: 67925, real25: 67925, montant: 107250, cat: "FIN", nature: "cotisations", com: "Calculé : clé population / enfants" },
@@ -125,7 +125,10 @@ window.DEFAULT_STATE = {
   // des heures hebdomadaires. HEURES À SAISIR : valeurs provisoires.
   postes: [
     { id: "p1", lib: "ATSEM", cat: "SCO", heures: 30 },
-    { id: "p2", lib: "Conductrice de bus", cat: "TRA", heures: 15 },
+    // Conductrice : ~30 min de conduite par jour (≈ 2 h/semaine), le reste en classe et à la cantine
+    { id: "p2", lib: "Conductrice – conduite du bus (≈ 30 min/jour)", cat: "TRA", heures: 2 },
+    { id: "p5", lib: "Conductrice – aide en classe", cat: "SCO", heures: 7 },
+    { id: "p6", lib: "Conductrice – cantine", cat: "RES", heures: 6 },
     { id: "p3", lib: "Garderie", cat: "GAR", heures: 15 },
     { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
   ],
