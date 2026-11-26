@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 9,
+  version: 10,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -125,7 +125,10 @@ window.DEFAULT_STATE = {
   // des heures hebdomadaires. HEURES À SAISIR : valeurs provisoires.
   postes: [
     { id: "p1", lib: "ATSEM", cat: "SCO", heures: 30 },
-    { id: "p2", lib: "Conductrice de bus", cat: "TRA", heures: 15 },
+    // Conductrice : ~30 min de conduite par jour (≈ 2 h/semaine), le reste en classe et à la cantine
+    { id: "p2", lib: "Conductrice – conduite du bus (≈ 30 min/jour)", cat: "TRA", heures: 2 },
+    { id: "p5", lib: "Conductrice – aide en classe", cat: "SCO", heures: 7 },
+    { id: "p6", lib: "Conductrice – cantine", cat: "RES", heures: 6 },
     { id: "p3", lib: "Garderie", cat: "GAR", heures: 15 },
     { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
   ],

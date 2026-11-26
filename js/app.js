@@ -41,6 +41,13 @@
       });
       s.version = 9;
     }
+    if (s && s.version === 9) {
+      // Conductrice : 30 min de conduite par jour, le reste en classe / cantine
+      const ps = s.postes || [];
+      const i = ps.findIndex((p) => p.id === "p2" && p.cat === "TRA" && +p.heures === 15);
+      if (i >= 0) ps.splice(i, 1, ...clone(window.DEFAULT_STATE.postes.filter((p) => ["p2", "p5", "p6"].includes(p.id))));
+      s.version = 10;
+    }
     return s;
   }
   function load() {
