@@ -17,6 +17,14 @@
       if (s.hyp) delete s.hyp.cleCalculPersonnel;
       s.version = 6;
     }
+    if (s && s.version === 6) {
+      const def = window.DEFAULT_STATE.communes;
+      (s.communes || []).forEach((c) => {
+        const d = def.find((x) => x.id === c.id || x.nom === c.nom);
+        if (c.budgetCommune == null) { c.budgetCommune = d ? d.budgetCommune : Math.round((+c.pop || 0) * 1000); c.budgetSource = d ? d.budgetSource : "Estimation : 1 000 €/hab."; }
+      });
+      s.version = 7;
+    }
     return s;
   }
   function load() {
@@ -155,6 +163,9 @@
   };
 
   const membres = () => state.communes.filter((c) => c.statut === "membre");
+  // Poids de la cotisation dans le budget de fonctionnement de la commune
+  const poids = (y, c) => (+c.budgetCommune > 0 ? cotisDe(y, c.id) / +c.budgetCommune : null);
+  const poidsTxt = (v) => (v == null ? "–" : `<span style="color:${v >= 0.15 ? "#b4232f" : v >= 0.08 ? "#b8660b" : "inherit"}">${pct(v)}</span>`);
   const cotisDe = (y, id) => (R[y].communes.find((x) => x.id === id) || {}).cotis || 0;
 
   /* =====================================================================
@@ -188,6 +199,11 @@
     });
     h += row("Total", (y) => R[y].besoin, "tot");
     h += `</tbody></table></div>${estime ? `<p class="small muted">* ${H} : répartition estimée avec la clé et les effectifs actuels (total exact : ${eur(R[H].besoin)}). À remplacer par les montants réellement appelés.</p>` : ""}</div>`;
+
+    // Poids dans le budget communal
+    h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3><div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}<th class="n">Évol. ${first}→${last}</th></tr></thead><tbody>
+      ${membres().map((c) => `<tr><td>${esc(c.nom)}</td><td class="n">${eur(+c.budgetCommune)} <span class="small muted" title="${esc(c.budgetSource || "")}">${/estim/i.test(c.budgetSource || "") ? "(estim.)" : /2017/.test(c.budgetSource || "") ? "(2017)" : ""}</span></td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}<td class="n">${poids(first, c) != null ? `${(poids(last, c) - poids(first, c)) >= 0 ? "+" : "−"}${nfp.format(Math.abs(poids(last, c) - poids(first, c)) * 100)} pt` : "–"}</td></tr>`).join("")}
+      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). <b>Budgets anciens ou estimés</b> : à remplacer par les vrais montants dans « Communes & cotisations ». En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
 
     // Par enfant
     h += `<div class="card"><h3>Cotisation par enfant scolarisé</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
@@ -267,6 +283,13 @@
       <div class="bar" style="margin:10px 0 0"><button class="btn" data-act="addCommune">+ Ajouter une commune membre</button>
       <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button>
       <label class="inl">${chkIn("checklist.enfants", state.checklist.enfants)} Effectifs vérifiés</label></div></div>`;
+    {
+      const ALL = state.meta.histYear ? [state.meta.histYear, ...YEARS()] : YEARS();
+      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Produits de fonctionnement annuels de chaque commune (budget principal). Les valeurs actuelles sont anciennes (comptes 2017) ou estimées à 1 000 €/habitant : remplacez-les par les montants de vos budgets.</p>
+        <div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement (€)</th><th>Source</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
+        ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td style="min-width:240px">${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}</tr>`).join("")}
+        </tbody></table></div></div>`;
+    }
     const H = state.meta.histYear;
     if (H) {
       h += `<div class="card"><h3>Cotisations ${H} réellement appelées</h3><p class="small muted" style="margin-top:-4px">Pour comparer avec ${H} dans la synthèse. Laissez vide pour utiliser une estimation (clé actuelle × total ${H} de ${eur(R[H].besoin)}).</p>
@@ -338,7 +361,7 @@
       const pe = c.enf ? c.cotis / c.enf : null;
       h += `<div class="pie"><h4><a href="#" data-act="pickCommune" data-arg="${c.id}">${esc(c.nom)}</a></h4>
         ${donut([{ label: "Part population", value: c.partPop, color: cP }, { label: "Part enfants", value: c.partEnf, color: cE }], { size: 150, center: pe == null ? "–" : eur(pe), sub: "par enfant" })}
-        <div class="cap">${nf0.format(c.enf)} enfant${c.enf > 1 ? "s" : ""} · cotisation ${eur(c.cotis)}<br>${pe == null ? "" : `<b class="${pe > moy ? "up" : "down"}">${pe >= moy ? "+" : ""}${pct(pe / moy - 1)}</b> vs coût moyen`}</div></div>`;
+        <div class="cap">${nf0.format(c.enf)} enfant${c.enf > 1 ? "s" : ""} · cotisation ${eur(c.cotis)}${(() => { const cc = state.communes.find((x) => x.id === c.id); return cc && +cc.budgetCommune > 0 ? ` · <b>${pct(c.cotis / cc.budgetCommune)}</b> du budget communal` : ""; })()}<br>${pe == null ? "" : `<b class="${pe > moy ? "up" : "down"}">${pe >= moy ? "+" : ""}${pct(pe / moy - 1)}</b> vs coût moyen`}</div></div>`;
     });
     d.horsDetail.forEach((hc) => {
       const ce = hc.enf * moy;
@@ -366,7 +389,7 @@
         ${esc(c.nom)} : <code>${nf0.format(c.pop)} hab.</code> sur <code>${nf0.format(d.popTot)}</code> = <code>${pct(c.sp)}</code><br><code>${eur(d.besoin)}</code> × ${nfp.format(state.cle.pop)} % × ${pct(c.sp)}</div><div class="r">${eur2(c.partPop)}</div></div>
       <div class="step"><div class="k">3</div><div class="f"><b>Part enfants scolarisés (${nfp.format(state.cle.enf)} %)</b><br>
         ${esc(c.nom)} : <code>${nf0.format(c.enf)} enfants</code> sur <code>${nf0.format(d.enf)}</code> (communes membres) = <code>${pct(c.se)}</code><br><code>${eur(d.besoin)}</code> × ${nfp.format(state.cle.enf)} % × ${pct(c.se)}</div><div class="r">${eur2(c.partEnf)}</div></div>
-      <div class="step total"><div class="k">=</div><div class="f"><b>Cotisation ${y} – ${esc(c.nom)}</b><br>soit ${pct(c.share)} du total · ${eur2(c.cotis / (c.pop || 1))} par habitant · ${c.enf ? eur(c.cotis / c.enf) + " par enfant" : "aucun enfant"}</div><div class="r">${eur2(c.cotis)}</div></div>
+      <div class="step total"><div class="k">=</div><div class="f"><b>Cotisation ${y} – ${esc(c.nom)}</b><br>soit ${pct(c.share)} du total · ${eur2(c.cotis / (c.pop || 1))} par habitant · ${c.enf ? eur(c.cotis / c.enf) + " par enfant" : "aucun enfant"}${(() => { const cc = state.communes.find((x) => x.id === c.id); return cc && +cc.budgetCommune > 0 ? ` · ${pct(c.cotis / cc.budgetCommune)} du budget de la commune` : ""; })()}</div><div class="r">${eur2(c.cotis)}</div></div>
       ${prev ? `<div class="small muted">${y - 1} : ${eur2(prev.cotis)} → évolution ${delta(c.cotis - prev.cotis)} (${dpctTxt(c.cotis, prev.cotis)}).</div>` : ""}
     </div>
     <div><h3 style="margin-top:0">Ce que finance la cotisation de ${esc(c.nom)}</h3><table><thead><tr><th>Service</th><th class="n">Coût net syndicat</th><th class="n">Part de la commune</th></tr></thead><tbody>
@@ -588,7 +611,7 @@
     pickCommune: (a) => { ui.commune = a; render(); scrollTo("detail"); },
     goCommune: (a) => { ui.commune = a; ui.tab = "communes"; render(); scrollTo("detail"); },
     goDetail: (a) => { ui.year = +a; ui.tab = "communes"; render(); scrollTo("detail"); },
-    addCommune: () => { state.communes.push({ id: uid("c"), nom: "Nouvelle commune membre", insee: "", pop: 100, enfants: Object.fromEntries(YEARS().map((y) => [y, 0])), tendance: 0, statut: "membre" }); commit(); },
+    addCommune: () => { state.communes.push({ id: uid("c"), nom: "Nouvelle commune membre", insee: "", pop: 100, enfants: Object.fromEntries(YEARS().map((y) => [y, 0])), tendance: 0, budgetCommune: 100000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" }); commit(); },
     delCommune: (a) => {
       if (membres().length <= 1) return alert("Il faut au moins une commune membre.");
       if (confirm(`Supprimer « ${state.communes[+a].nom} » ?`)) { state.communes.splice(+a, 1); commit(); }
