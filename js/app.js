@@ -39,7 +39,7 @@
   let R = M.compute(state);
   const YEARS = () => state.meta.years;
   const BASE = () => state.meta.baseYear;
-  const ui = { tab: "synthese", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
+  const ui = { tab: "synthese", ceYear: BASE() + 1, ceTab: "moy", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
 
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
   function commit() { save(); R = M.compute(state); scheduleRender(); }
@@ -74,7 +74,7 @@
   const selIn = (p, v, opts, t = "s") =>
     `<select class="sel" data-p="${p}" data-t="${t}">${Object.entries(opts).map(([k, l]) => `<option value="${esc(k)}" ${String(k) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
   const chkIn = (p, v) => `<input type="checkbox" data-p="${p}" data-t="b" ${v ? "checked" : ""}>`;
-  const catOpts = () => Object.fromEntries(Object.entries(M.CATS).filter(([k]) => k !== "FDR").map(([k, c]) => [k, c.lib]));
+  const catOpts = () => Object.fromEntries(Object.entries(M.CATS).filter(([k]) => k !== "FDR" && k !== "HORS").map(([k, c]) => [k, c.lib]));
   const yearSeg = (cur, act = "year") => `<div class="seg">${YEARS().map((yy) => `<button data-act="${act}" data-arg="${yy}" class="${yy === cur ? "on" : ""}">${yy}</button>`).join("")}</div>`;
 
   function setPath(p, v) {
@@ -254,18 +254,21 @@
   }
 
   // Camembert du coût net par service (div = diviseur, ex. nombre d'enfants)
-  function pieServices(d, div, unite) {
-    // Services à coût net positif dans le camembert ; ceux dont les recettes dépassent
-    // les dépenses (ex. cantine, administration) apparaissent en déduction sous la légende.
-    const ent = Object.entries(d.analytiqueVentile).filter(([k, v]) => Math.abs(v) > 0.5 && k !== "FDR" && k !== "FIN").sort((a, b) => b[1] - a[1]);
+  // Camembert par service à partir d'une table { catégorie: montant }.
+  // Les services négatifs (recettes > dépenses) sont listés en déduction ; total au centre = somme.
+  function pieMap(map, div, unite, exclude = ["FDR", "HORS"], note = "") {
+    const ent = Object.entries(map).filter(([k, v]) => Math.abs(v) > 0.5 && !exclude.includes(k)).sort((a, b) => b[1] - a[1]);
     const slices = ent.filter(([, v]) => v > 0).map(([k, v]) => ({ label: M.CATS[k].lib, value: v / div, color: M.CATS[k].color }));
     const neg = ent.filter(([, v]) => v < 0);
     const tot = ent.reduce((s, [, v]) => s + v / div, 0);
-    const why = { RES: "recettes cantine > coût des repas", ADM: "remboursements de tiers > frais d'administration" };
-    const negHtml = neg.length ? `<div class="pie-legend" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px">${neg.map(([k, v]) => `<div><span class="sw" style="background:transparent;border:1px solid ${M.CATS[k].color}"></span>${M.CATS[k].lib} <span class="small muted">(${why[k] || "recettes > dépenses"})</span><b class="down">${eur(v / div)}</b><span></span></div>`).join("")}<div><span></span><b style="text-align:left">Coût net total</b><b>${eur(tot)}</b><span></span></div></div>` : "";
-    return `<div class="pie-main">${donut(slices, { size: 220, center: eur(tot), sub: unite })}<div>${legend(slices)}${negHtml}</div></div>
-      <p class="small muted">Coût net de chaque service (dépenses − recettes propres). Personnel réparti selon les heures des postes (onglet « Communes & cotisations »). Hors fonds de roulement et participations des communes hors membre.</p>`;
+    const why = { RES: "recettes cantine > coût des repas", ADM: "remboursements de tiers > frais d'administration", TRA: "participation Région > frais de transport", HORS: "payé par les communes hors membre", FDR: "utilisation de l'excédent des années précédentes" };
+    const negHtml = neg.length ? `<div class="pie-legend" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px">${neg.map(([k, v]) => `<div><span class="sw" style="background:transparent;border:1px solid ${M.CATS[k].color}"></span>${M.CATS[k].lib} <span class="small muted">(${why[k] || "recettes > dépenses"})</span><b class="down">${eur(v / div)}</b><span></span></div>`).join("")}<div><span></span><b style="text-align:left">Total</b><b>${eur(tot)}</b><span></span></div></div>` : "";
+    return `<div class="pie-main">${donut(slices, { size: 240, center: eur(tot), sub: unite })}<div>${legend(slices)}${negHtml}</div></div>${note ? `<p class="small muted">${note}</p>` : ""}`;
   }
+  function pieServices(d, div, unite) {
+    return pieMap(d.analytiqueVentile, div, unite, ["FDR", "HORS"], "Coût net de chaque service (dépenses − recettes propres), personnel réparti selon les heures des postes. Hors fonds de roulement et participations des communes hors membre.");
+  }
+
 
 
   /* =====================================================================
@@ -342,34 +345,48 @@
   }
 
   function coutParEnfant() {
-    const y = ui.year, d = R[y], moy = d.coutNetEnfant;
-    let h = `<div class="card" id="coutenfant"><h3>Coût par enfant</h3><div class="bar">${yearSeg(y)}</div>
+    const H = state.meta.histYear, ALL = H ? [H, ...YEARS()] : YEARS();
+    if (!ALL.includes(ui.ceYear)) ui.ceYear = BASE() + 1;
+    const y = ui.ceYear, d = R[y], moy = d.coutNetEnfant;
+    if (ui.ceTab !== "moy" && !d.communes.find((c) => c.id === ui.ceTab)) ui.ceTab = "moy";
+    let h = `<div class="card" id="coutenfant"><h3>Coût par enfant</h3>
+      <div class="bar"><div class="seg">${ALL.map((yy) => `<button data-act="ceYear" data-arg="${yy}" class="${yy === y ? "on" : ""}">${yy}${yy === H ? " (BP)" : ""}</button>`).join("")}</div></div>
+      ${y === H ? `<p class="small muted" style="margin-top:-6px">${H} : budget primitif ; effectifs ${H} inconnus, ceux de ${BASE()} sont utilisés${d.communes.some((c) => c.estime) ? " ; répartition entre communes estimée" : ""}.</p>` : ""}
       <div class="kpis">
       <div class="kpi"><div class="l">Coût brut par enfant</div><div class="v">${eur(d.coutBrutEnfant)}</div><div class="d">${eur(d.dep)} de dépenses ÷ ${nf0.format(d.enfTotal)} enfants</div></div>
       <div class="kpi"><div class="l">Coût net moyen par enfant</div><div class="v">${eur(moy)}</div><div class="d">après recettes propres (cantine, Région…), hors fonds de roulement</div></div>
       <div class="kpi"><div class="l">Cotisation moyenne par enfant membre</div><div class="v">${eur(d.besoin / (d.enf || 1))}</div><div class="d">${eur(d.besoin)} ÷ ${nf0.format(d.enf)} enfants des communes membres</div></div>
       <div class="kpi"><div class="l">Enfants hors membre</div><div class="v">${eur(d.horsResteMembres)}</div><div class="d">${nf0.format(d.enfHors)} enfants × ${eur(moy)}${d.recHors ? " − " + eur(d.recHors) + " facturés" : ""} : reste à la charge des membres</div></div></div>`;
 
-    h += `<h3 style="margin-top:6px">Ce que coûte un enfant en ${y}, par service</h3>${pieServices(d, d.enfTotal || 1, "par enfant")}`;
+    // Onglets : moyenne / chaque commune membre
+    h += `<div class="bar"><div class="seg" style="flex-wrap:wrap">
+      <button data-act="ceTab" data-arg="moy" class="${ui.ceTab === "moy" ? "on" : ""}">En moyenne</button>
+      ${d.communes.map((c) => `<button data-act="ceTab" data-arg="${c.id}" class="${ui.ceTab === c.id ? "on" : ""}">${esc(c.nom)}</button>`).join("")}</div></div>`;
 
-    // Un camembert par commune : part population / part enfants de sa cotisation par enfant
-    const cP = "#8a9bb0", cE = "#1f4e79";
-    h += `<h3 style="margin-top:18px">Cotisation par enfant de chaque commune en ${y}</h3>
-      <div class="legend"><span><span class="sw" style="background:${cP}"></span>part population (${nfp.format(state.cle.pop)} %)</span><span><span class="sw" style="background:${cE}"></span>part enfants (${nfp.format(state.cle.enf)} %)</span><span>· coût net moyen d'un enfant : <b>${eur(moy)}</b></span></div>
-      <div class="pies">`;
-    d.communes.forEach((c) => {
+    if (ui.ceTab === "moy") {
+      h += `<h3>Ce que coûte un enfant en ${y}, en moyenne</h3>${pieServices(d, d.enfTotal || 1, "par enfant")}`;
+    } else {
+      const c = d.communes.find((x) => x.id === ui.ceTab);
+      const cc = state.communes.find((x) => x.id === c.id) || {};
       const pe = c.enf ? c.cotis / c.enf : null;
-      h += `<div class="pie"><h4><a href="#" data-act="pickCommune" data-arg="${c.id}">${esc(c.nom)}</a></h4>
-        ${donut([{ label: "Part population", value: c.partPop, color: cP }, { label: "Part enfants", value: c.partEnf, color: cE }], { size: 150, center: pe == null ? "–" : eur(pe), sub: "par enfant" })}
-        <div class="cap">${nf0.format(c.enf)} enfant${c.enf > 1 ? "s" : ""} · cotisation ${eur(c.cotis)}${(() => { const cc = state.communes.find((x) => x.id === c.id); return cc && +cc.budgetCommune > 0 ? ` · <b>${pct(c.cotis / cc.budgetCommune)}</b> du budget communal` : ""; })()}<br>${pe == null ? "" : `<b class="${pe > moy ? "up" : "down"}">${pe >= moy ? "+" : ""}${pct(pe / moy - 1)}</b> vs coût moyen`}</div></div>`;
-    });
-    d.horsDetail.forEach((hc) => {
-      const ce = hc.enf * moy;
-      h += `<div class="pie hors"><h4><i>${esc(hc.nom)}</i></h4>
-        ${donut([{ label: "Payé par la commune", value: hc.participation, color: "#3c9a74" }, { label: "À la charge des membres", value: Math.max(0, ce - hc.participation), color: "#d4663a" }], { size: 150, center: eur(hc.enf ? hc.participation / hc.enf : 0), sub: "payé par enfant" })}
-        <div class="cap">hors membre · ${hc.facturee ? "facturée" : "non facturée"} · ${nf0.format(hc.enf)} enfant${hc.enf > 1 ? "s" : ""}<br><span style="color:#d4663a">■</span> ${eur(Math.max(0, ce - hc.participation))} à la charge des membres</div></div>`;
-    });
-    h += `</div><p class="small muted">Chaque camembert montre la cotisation par enfant de la commune et sa composition. Une commune peuplée avec peu d'enfants scolarisés paie surtout par sa part population, d'où un coût par enfant élevé. Pour les communes hors membre : en vert la participation facturée, en orange le reste du coût de leurs enfants, payé par les membres.</p></div>`;
+      const share = d.besoin ? c.cotis / d.besoin : 0;
+      const map = Object.fromEntries(Object.entries(d.analytiqueVentile).map(([k, v]) => [k, v * share]));
+      h += `<h3>${esc(c.nom)} en ${y} : ${pe == null ? "aucun enfant scolarisé" : eur(pe) + " de cotisation par enfant"}${c.estime ? ' <span class="small muted">(estimation)</span>' : ""}</h3>`;
+      if (pe == null) h += `<p class="muted">Pas d'enfant scolarisé cette année : la commune ne paie que sa part population (${eur(c.partPop)}).</p>`;
+      else h += `<div class="grid g2" style="align-items:start"><div>${pieMap(map, c.enf, "par enfant", [], "Ce que finance la cotisation de la commune, ramenée à chacun de ses enfants. Elle inclut sa part du fonds de roulement et déduit sa part des participations des communes hors membre.")}</div>
+        <div><table><tbody>
+          <tr><td>Enfants scolarisés</td><td class="n">${nf0.format(c.enf)}</td></tr>
+          <tr><td>Cotisation ${y}</td><td class="n"><b>${eur(c.cotis)}</b></td></tr>
+          <tr><td>Cotisation par enfant</td><td class="n"><b>${eur(pe)}</b></td></tr>
+          <tr><td>Coût net moyen d'un enfant</td><td class="n">${eur(moy)}</td></tr>
+          <tr class="sub"><td>Écart avec la moyenne</td><td class="n"><span class="${pe > moy ? "up" : "down"}">${pe >= moy ? "+" : ""}${pct(pe / moy - 1)}</span></td></tr>
+          ${+cc.budgetCommune > 0 ? `<tr><td>Poids dans le budget de la commune</td><td class="n">${poidsTxt(c.cotis / cc.budgetCommune)}</td></tr>` : ""}
+        </tbody></table>
+        <h4 style="margin:14px 0 6px">Pourquoi ce montant par enfant ?</h4>
+        <div class="pie-main" style="gap:14px">${donut([{ label: "Part population", value: c.partPop, color: "#8a9bb0" }, { label: "Part enfants", value: c.partEnf, color: "#1f4e79" }], { size: 130, center: pct(c.partPop / (c.cotis || 1)), sub: "population" })}
+          <div class="small">La cotisation se compose de la <b>part population</b> (${eur(c.partPop)}, selon ses ${nf0.format(c.pop)} habitants) et de la <b>part enfants</b> (${eur(c.partEnf)}). Plus la part population est grande par rapport au nombre d'enfants, plus le coût par enfant est élevé.</div></div></div></div>`;
+    }
+    h += `</div>`;
     return h;
   }
 
@@ -554,6 +571,8 @@
     tab: (a) => { ui.tab = a; render(); window.scrollTo(0, 0); },
     year: (a) => { ui.year = +a; render(); },
     matrice: (a) => { ui.matrice = a; render(); },
+    ceYear: (a) => { ui.ceYear = +a; render(); },
+    ceTab: (a) => { ui.ceTab = a; render(); },
     pickCommune: (a) => { ui.commune = a; render(); scrollTo("detail"); },
     goCommune: (a) => { ui.commune = a; ui.tab = "communes"; render(); scrollTo("detail"); },
     goDetail: (a) => { ui.year = +a; ui.tab = "communes"; render(); scrollTo("detail"); },
