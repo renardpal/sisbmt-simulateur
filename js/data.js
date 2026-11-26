@@ -16,7 +16,7 @@
 // index : aucun | inflation | salaires | energie | alimentation | tarif
 
 window.DEFAULT_STATE = {
-  version: 1,
+  version: 2,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -88,14 +88,15 @@ window.DEFAULT_STATE = {
 
   /* ---------------- Communes ---------------- */
   // Population : BANATIC (population totale regroupée en vigueur, 971 hab.).
-  // Enfants : ESTIMATIONS à remplacer par les effectifs réels par commune.
+  // Enfants : effectifs 2026 communiqués par le syndicat (31 enfants des communes
+  // membres + 6 enfants hors syndicat). 2027-2029 : recopiés de 2026, à ajuster.
   communes: [
-    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 4, 2027: 4, 2028: 4, 2029: 4 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
-    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 4, 2027: 4, 2028: 4, 2029: 4 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
-    { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 14, 2027: 14, 2028: 14, 2029: 14 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
-    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
-    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
-    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 1, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
+    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 10, 2027: 10, 2028: 10, 2029: 10 }, tendance: 0, statut: "membre", actif: true, annee: 2026, km: {}, ouvreClasse: false, posteSupp: false },
     { id: "c7", nom: "Nouvelle commune (exemple)", insee: "", pop: 150, enfants: { 2026: 6, 2027: 6, 2028: 6, 2029: 6 }, statut: "candidate", actif: false, annee: 2027, km: { navette: 0, ramassage: 8 }, ouvreClasse: false, posteSupp: false },
   ],
 
@@ -134,6 +135,13 @@ window.DEFAULT_STATE = {
       tarif:        { 2027: 0.0, 2028: 0.0, 2029: 0.0 },
     },
     classes: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 },
+    // Enfants scolarisés venant de communes NON membres : ils pèsent sur les
+    // dépenses (repas, fournitures…) mais n'entrent pas dans la clé de cotisation.
+    horsMembres: { 2026: 6, 2027: 6, 2028: 6, 2029: 6 },
+    tendanceHors: 0,
+    // Participation demandée par enfant hors syndicat (€/an). 0 par défaut :
+    // les remboursements actuels (Coutarnoux…) sont déjà dans la ligne 70878.
+    fraisHorsMembre: 0,
     fdr: { 2025: 0, 2026: 8054.87, 2027: 8054.87, 2028: 8054.87, 2029: 8054.87 },
     coutPoste: 24000,
     cleCalculPersonnel: { SCO: 40, RES: 30, TRA: 15, ADM: 15 },

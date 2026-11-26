@@ -140,8 +140,13 @@
     const base = state.meta.baseYear;
     const actives = communesActives(state, y, scen);
     const membresBase = communesActives(state, base, false);
-    const enfBase = membresBase.reduce((s, c) => s + enfantsDe(c, base), 0) || 1;
+    const hors = (yy) => n((state.hyp.horsMembres || {})[yy]);
+    // Effectif total accueilli (membres + hors syndicat) : pilote les dépenses variables.
+    const enfBase = membresBase.reduce((s, c) => s + enfantsDe(c, base), 0) + hors(base) || 1;
+    // Effectif des communes cotisantes : sert à la clé de répartition.
     const enf = actives.reduce((s, c) => s + enfantsDe(c, y), 0);
+    const enfHors = hors(y);
+    const enfTotal = enf + enfHors;
     const classesBase = n(state.hyp.classes[base]) || 1;
     const nouvellesClasses = scen ? actives.filter((c) => c.statut !== "membre" && c.ouvreClasse).length : 0;
     const classes = n(state.hyp.classes[y]) + nouvellesClasses;
@@ -157,7 +162,7 @@
       if (l.nature === "ponctuel") v = y === base ? n(l.montant) : 0;
       else {
         v = n(l.montant) * indexFactor(state, l.index, y);
-        if (l.nature === "enfant") v *= enf / enfBase;
+        if (l.nature === "enfant") v *= enfTotal / enfBase;
         if (l.nature === "classe") v *= classes / classesBase;
       }
       push({ src: "ligne", id: l.id, sens: l.sens, chap: l.chap, art: l.art, lib: l.lib, cat: l.cat, v });
@@ -182,6 +187,10 @@
     if (postesSupp > 0) {
       push({ src: "poste", sens: "dep", chap: "012", art: "Δ", lib: `Poste(s) supplémentaire(s) ×${postesSupp}`, cat: "SCO", v: postesSupp * n(state.hyp.coutPoste) * indexFactor(state, "salaires", y) });
     }
+
+    // Participation demandée pour les enfants hors syndicat
+    const fraisHors = n(state.hyp.fraisHorsMembre) * enfHors;
+    if (fraisHors > 0.005) push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation communes extérieures (${enfHors} enfants hors syndicat)`, cat: "SCO", v: fraisHors * indexFactor(state, "inflation", y) });
 
     // Ajustements libres
     for (const a of state.ajustements) {
@@ -229,10 +238,20 @@
     chapitres.rec["002"] = (chapitres.rec["002"] || 0) + report;
     chapitres.rec["74748"] = besoin;
 
+    // Coûts moyens par enfant accueilli (membres + hors syndicat)
+    const recHors = lignes.filter((l) => l.src === "hors").reduce((s, l) => s + l.v, 0);
+    // coût de fonctionnement net des recettes propres (cantine, Région…), hors fonds de roulement
+    // et avant toute participation des communes (membres ou extérieures)
+    const coutNet = dep - (recAutres - recHors);
+    const coutBrutEnfant = dep / (enfTotal || 1);
+    const coutNetEnfant = coutNet / (enfTotal || 1);
+    const horsCharge = coutNetEnfant * enfHors; // coût net des enfants hors syndicat…
+    const horsResteMembres = horsCharge - recHors; // …dont reste à la charge des membres
+
     return {
       y, scen, lignes, dep, recAutres, report, fdr, variationFdr, besoin,
       recTotal: recAutres + report + besoin,
-      enf, enfBase, classes, popTot, communes, transport: tr, invest: inv, analytique, analytiqueVentile, chapitres, postesSupp,
+      enf, enfHors, enfTotal, enfBase, classes, coutNet, coutBrutEnfant, coutNetEnfant, recHors, horsCharge, horsResteMembres, popTot, communes, transport: tr, invest: inv, analytique, analytiqueVentile, chapitres, postesSupp,
     };
   }
 

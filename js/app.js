@@ -12,6 +12,7 @@
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
       if (s && s.version === window.DEFAULT_STATE.version) return s;
+      if (s) window.__migre = true;
     } catch (e) {}
     const s = clone(window.DEFAULT_STATE);
     s.nomScenario = "Scénario 1";
@@ -22,7 +23,7 @@
   let R = M.compute(state);
   const YEARS = () => state.meta.years;
   const BASE = () => state.meta.baseYear;
-  const ui = { tab: "synthese", year: 2027, view: "scen", commune: state.communes[0].id, trYear: 2027 };
+  const ui = { tab: "synthese", year: 2027, view: "scen", commune: state.communes[0].id, trYear: 2027, matrice: "eur" };
 
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
   function commit() { save(); R = M.compute(state); scheduleRender(); }
@@ -165,7 +166,7 @@
       <div class="kpi"><div class="l">Cotisations des communes ${y}</div><div class="v">${eur(s.besoin)}</div><div class="d">${delta(dTot)} vs référence · ${y !== BASE() ? delta(s.besoin - b.besoin) + " vs " + BASE() : "budget de base"}</div></div>
       <div class="kpi"><div class="l">Dépenses de fonctionnement</div><div class="v">${eur(s.dep)}</div><div class="d">${delta(s.dep - r.dep)} vs référence</div></div>
       <div class="kpi"><div class="l">Recettes hors cotisations</div><div class="v">${eur(s.recAutres)}</div><div class="d">${delta(s.recAutres - r.recAutres, true)} vs référence</div></div>
-      <div class="kpi"><div class="l">Coût par enfant scolarisé</div><div class="v">${eur(s.besoin / (s.enf || 1))}</div><div class="d">${nf0.format(s.enf)} enfants · ${s.classes} classes</div></div>
+      <div class="kpi"><div class="l">Coût net moyen par enfant</div><div class="v">${eur(s.coutNetEnfant)}</div><div class="d">${nf0.format(s.enfTotal)} enfants (dont ${nf0.format(s.enfHors)} hors syndicat) · ${s.classes} classes</div></div>
       <div class="kpi"><div class="l">Cotisation par habitant</div><div class="v">${eur2(s.besoin / (s.popTot || 1))}</div><div class="d">${nf0.format(s.popTot)} habitants</div></div>
     </div>`;
 
@@ -222,25 +223,17 @@
     let h = `<h2>Communes & cotisations</h2>
     <p class="lead">Les cotisations couvrent le <b>besoin de financement</b> du syndicat (dépenses − recettes propres − résultat reporté + fonds de roulement visé). Elles sont réparties selon une clé mixte population / enfants scolarisés.</p>`;
 
-    h += `<div class="note"><b>Effectifs par commune à saisir.</b> Le budget ne donne pas le nombre d'enfants par commune : les valeurs surlignées sont des estimations (≈ 40 enfants répartis selon la population). Les populations viennent de BANATIC (971 hab. au total).</div>`;
+    h += `<div class="note"><b>Effectifs ${BASE()} : 31 enfants des communes membres + 6 enfants hors syndicat.</b> Les années suivantes (surlignées) reprennent ${BASE()} : ajustez-les avec les prévisions de rentrée. Les populations viennent de BANATIC (971 hab. au total).</div>`;
 
     h += `<div class="card"><h3>Clé de répartition</h3><div class="bar">
       <label class="inl">Part population ${numIn("cle.pop", state.cle.pop, "s", 1)} %</label>
       <label class="inl">Part enfants scolarisés ${numIn("cle.enf", state.cle.enf, "s", 1)} %</label>
       <span class="small muted">(les deux parts totalisent toujours 100 %)</span></div></div>`;
 
-    // Membres
     const ehead = yrs.map((y) => `<th class="n">Enfants ${y}</th>`).join("");
-    h += `<div class="card"><h3>Communes membres</h3><div class="scroll"><table><thead><tr><th>Commune</th><th>INSEE</th><th class="n">Population</th>${ehead}<th></th></tr></thead><tbody>`;
-    state.communes.forEach((c, i) => {
-      if (c.statut !== "membre") return;
-      h += `<tr><td>${txtIn(`communes.${i}.nom`, c.nom)}</td><td style="width:80px">${txtIn(`communes.${i}.insee`, c.insee)}</td><td class="n">${numIn(`communes.${i}.pop`, c.pop, "", 0)}</td>
-        ${yrs.map((y) => `<td class="n">${numIn(`communes.${i}.enfants.${y}`, c.enfants[y], state.checklist.enfants ? "s" : "s est", 0)}</td>`).join("")}
-        <td><button class="btn small" data-act="toCand" data-arg="${i}" title="Passer en commune candidate (scénario)">→ candidate</button></td></tr>`;
-    });
-    const mem = state.communes.filter((c) => c.statut === "membre");
-    h += `<tr class="tot"><td>Total membres</td><td></td><td class="n">${nf0.format(mem.reduce((s, c) => s + +c.pop, 0))}</td>${yrs.map((y) => `<td class="n">${nf0.format(mem.reduce((s, c) => s + (+c.enfants[y] || 0), 0))}</td>`).join("")}<td></td></tr>`;
-    h += `</tbody></table></div><div class="bar" style="margin:10px 0 0"><button class="btn" data-act="addCommune" data-arg="membre">+ Ajouter une commune membre</button>
+    // Membres
+    h += `<div class="card"><h3>Communes membres et effectifs</h3>${effectifsTable(true)}`;
+    h += `<div class="bar" style="margin:10px 0 0"><button class="btn" data-act="addCommune" data-arg="membre">+ Ajouter une commune membre</button>
       <label class="inl">${chkIn("checklist.enfants", state.checklist.enfants)} Effectifs vérifiés</label></div></div>`;
 
     // Candidates
@@ -262,7 +255,75 @@
     h += `</tbody></table></div><div class="bar" style="margin:10px 0 0"><button class="btn primary" data-act="addCommune" data-arg="candidate">+ Simuler l'adhésion d'une commune</button>
       <span class="small muted">Coût d'un poste supplémentaire : ${numIn("hyp.coutPoste", state.hyp.coutPoste, "", 0)} €/an (chargé)</span></div></div>`;
 
+    h += coutParEnfant();
     h += detailCommune();
+    return h;
+  }
+
+  /* ---------- Tableau des effectifs (communes + hors syndicat) ---------- */
+  // Modifier l'année de base ou la colonne « Évol./an » recalcule les années suivantes :
+  // enfants(N) = enfants(base) + évol × (N − base). Chaque année reste ensuite modifiable à la main.
+  function effectifsTable(complet) {
+    const yrs = YEARS();
+    const est = (y) => (state.checklist.enfants || y === BASE() ? "s" : "s est");
+    let h = `<p class="small muted" style="margin-top:-4px">Saisissez les effectifs ${BASE()}, puis une <b>évolution par an</b> (ex. +1, −2) pour projeter ${yrs[1]}–${yrs[yrs.length - 1]} d'un coup. Vous pouvez ensuite corriger chaque année à la main (attention : modifier ${BASE()} ou l'évolution recalcule les années suivantes).</p>
+      <div class="scroll"><table><thead><tr><th>Commune</th>${complet ? `<th>INSEE</th><th class="n">Population</th>` : ""}<th class="n">Enfants ${BASE()}</th><th class="n" title="Enfants en plus (ou en moins) chaque année">Évol./an</th>${yrs.slice(1).map((y) => `<th class="n">Enfants ${y}</th>`).join("")}${complet ? "<th></th>" : ""}</tr></thead><tbody>`;
+    state.communes.forEach((c, i) => {
+      if (c.statut !== "membre") return;
+      h += `<tr><td>${complet ? txtIn(`communes.${i}.nom`, c.nom) : esc(c.nom)}</td>${complet ? `<td style="width:80px">${txtIn(`communes.${i}.insee`, c.insee)}</td><td class="n">${numIn(`communes.${i}.pop`, c.pop, "", 0)}</td>` : ""}
+        <td class="n">${numIn(`communes.${i}.enfants.${BASE()}`, c.enfants[BASE()], "s", 0)}</td>
+        <td class="n">${numIn(`communes.${i}.tendance`, c.tendance || 0, "s", 1)}</td>
+        ${yrs.slice(1).map((y) => `<td class="n">${numIn(`communes.${i}.enfants.${y}`, c.enfants[y], est(y), 0)}</td>`).join("")}
+        ${complet ? `<td><button class="btn small" data-act="toCand" data-arg="${i}" title="Passer en commune candidate (scénario)">→ candidate</button></td>` : ""}</tr>`;
+    });
+    const mem = state.communes.filter((c) => c.statut === "membre");
+    const horsM = state.hyp.horsMembres || {};
+    const sumMem = (y) => mem.reduce((s, c) => s + (+c.enfants[y] || 0), 0);
+    const pad = complet ? `<td></td><td class="n">${nf0.format(mem.reduce((s, c) => s + +c.pop, 0))}</td>` : "";
+    h += `<tr class="sub"><td>Total communes membres</td>${pad}<td class="n">${nf0.format(sumMem(BASE()))}</td><td></td>${yrs.slice(1).map((y) => `<td class="n">${nf0.format(sumMem(y))}</td>`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    h += `<tr><td${complet ? ' colspan="3"' : ""}><i>Enfants hors syndicat</i> <span class="small muted">(dans les dépenses, pas dans la clé)</span></td>
+      <td class="n">${numIn(`hyp.horsMembres.${BASE()}`, horsM[BASE()] || 0, "s", 0)}</td><td class="n">${numIn("hyp.tendanceHors", state.hyp.tendanceHors || 0, "s", 1)}</td>
+      ${yrs.slice(1).map((y) => `<td class="n">${numIn(`hyp.horsMembres.${y}`, horsM[y] || 0, est(y), 0)}</td>`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    h += `<tr class="tot"><td${complet ? ' colspan="3"' : ""}>Total enfants accueillis</td><td class="n">${nf0.format(sumMem(BASE()) + (+horsM[BASE()] || 0))}</td><td></td>${yrs.slice(1).map((y) => `<td class="n">${nf0.format(sumMem(y) + (+horsM[y] || 0))}</td>`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    return h + `</tbody></table></div>`;
+  }
+  function projeterEffectifs(obj, tendance) {
+    const b = +obj[BASE()] || 0;
+    YEARS().forEach((y) => { if (y > BASE()) obj[y] = Math.max(0, Math.round(b + (+tendance || 0) * (y - BASE()))); });
+  }
+
+  /* ---------- Coût par enfant et détail par commune ---------- */
+  function coutParEnfant() {
+    const yrs = YEARS(), y = ui.year, v = ui.view, d = (v === "scen" ? R.scen : R.ref)[y];
+    const moy = d.coutNetEnfant;
+    let h = `<div class="card" id="coutenfant"><h3>Coût moyen par enfant et détail par commune</h3><div class="bar">
+      <div class="seg">${yrs.map((yy) => `<button data-act="year" data-arg="${yy}" class="${yy === y ? "on" : ""}">${yy}</button>`).join("")}</div>
+      <div class="seg"><button data-act="view" data-arg="ref" class="${v === "ref" ? "on" : ""}">Référence</button><button data-act="view" data-arg="scen" class="${v === "scen" ? "on" : ""}">Scénario</button></div></div>`;
+    h += `<div class="kpis">
+      <div class="kpi"><div class="l">Coût brut par enfant</div><div class="v">${eur(d.coutBrutEnfant)}</div><div class="d">${eur(d.dep)} de dépenses ÷ ${nf0.format(d.enfTotal)} enfants</div></div>
+      <div class="kpi"><div class="l">Coût net moyen par enfant</div><div class="v">${eur(moy)}</div><div class="d">après recettes propres (cantine, Région…), hors fonds de roulement</div></div>
+      <div class="kpi"><div class="l">Cotisation moyenne par enfant membre</div><div class="v">${eur(d.besoin / (d.enf || 1))}</div><div class="d">${eur(d.besoin)} ÷ ${nf0.format(d.enf)} enfants des communes membres</div></div>
+      <div class="kpi"><div class="l">Enfants hors syndicat</div><div class="v">${eur(d.horsResteMembres)}</div><div class="d">${nf0.format(d.enfHors)} enfants × ${eur(moy)}${d.recHors ? " − " + eur(d.recHors) + " perçus" : ""} : coût supporté par les membres</div></div></div>`;
+
+    h += `<div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Enfants</th><th class="n">Cotisation</th><th class="n">Cotisation par enfant</th><th class="n">Coût moyen par enfant</th><th class="n">Écart</th><th class="n">Coût de ses enfants</th><th class="n">Cotisation − coût de ses enfants</th></tr></thead><tbody>`;
+    d.communes.forEach((c) => {
+      const parEnf = c.enf ? c.cotis / c.enf : null, coutEnf = c.enf * moy;
+      h += `<tr class="${c.statut !== "membre" ? "cand" : ""}"><td><a href="#" data-act="pickCommune" data-arg="${c.id}">${esc(c.nom)}</a></td><td class="n">${nf0.format(c.enf)}</td><td class="n">${eur(c.cotis)}</td>
+        <td class="n"><b>${parEnf == null ? "–" : eur(parEnf)}</b></td><td class="n">${eur(moy)}</td><td class="n">${parEnf == null ? "–" : (parEnf >= moy ? "+" : "") + pct(parEnf / moy - 1)}</td>
+        <td class="n">${eur(coutEnf)}</td><td class="n">${delta(c.cotis - coutEnf)}</td></tr>`;
+    });
+    if (d.enfHors) h += `<tr><td><i>Hors syndicat</i></td><td class="n">${nf0.format(d.enfHors)}</td><td class="n">${eur(d.recHors)}</td><td class="n">${eur(d.recHors / d.enfHors)}</td><td class="n">${eur(moy)}</td><td class="n">${pct(d.recHors / d.enfHors / moy - 1)}</td><td class="n">${eur(d.horsCharge)}</td><td class="n">${delta(d.recHors - d.horsCharge)}</td></tr>`;
+    h += `<tr class="tot"><td>Total</td><td class="n">${nf0.format(d.enfTotal)}</td><td class="n">${eur(d.besoin + d.recHors)}</td><td class="n">${eur((d.besoin + d.recHors) / (d.enfTotal || 1))}</td><td class="n">${eur(moy)}</td><td></td><td class="n">${eur(d.coutNet)}</td><td class="n">${delta(d.besoin + d.recHors - d.coutNet)}</td></tr></tbody></table></div>
+      <p class="small muted">« Cotisation − coût de ses enfants » : positif, la commune paie plus que le coût moyen de ses enfants, notamment par sa part population. Le total positif correspond au fonds de roulement visé (${eur(d.variationFdr)}).</p>`;
+
+    // Matrice commune × service
+    const cats = Object.entries(d.analytiqueVentile).filter(([, x]) => Math.abs(x) > 0.5).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    const parEnf = ui.matrice === "enf";
+    const val = (c, k) => { const x = d.analytiqueVentile[k] * c.share; return parEnf ? (c.enf ? x / c.enf : null) : x; };
+    h += `<h3 style="margin-top:18px">Détail par commune et par service ${y}</h3><div class="bar"><div class="seg"><button data-act="matrice" data-arg="eur" class="${!parEnf ? "on" : ""}">En euros</button><button data-act="matrice" data-arg="enf" class="${parEnf ? "on" : ""}">Par enfant</button></div></div>
+      <div class="scroll"><table><thead><tr><th>Commune</th>${cats.map((k) => `<th class="n"><span class="sw" style="background:${M.CATS[k].color}"></span>${M.CATS[k].lib}</th>`).join("")}<th class="n">Total</th></tr></thead><tbody>
+      ${d.communes.map((c) => `<tr><td>${esc(c.nom)}</td>${cats.map((k) => { const x = val(c, k); return `<td class="n">${x == null ? "–" : eur(x)}</td>`; }).join("")}<td class="n"><b>${parEnf ? (c.enf ? eur(c.cotis / c.enf) : "–") : eur(c.cotis)}</b></td></tr>`).join("")}
+      <tr class="tot"><td>${parEnf ? "Moyenne (membres)" : "Total"}</td>${cats.map((k) => `<td class="n">${eur(parEnf ? d.analytiqueVentile[k] / (d.enf || 1) : d.analytiqueVentile[k])}</td>`).join("")}<td class="n">${eur(parEnf ? d.besoin / (d.enf || 1) : d.besoin)}</td></tr></tbody></table></div></div>`;
     return h;
   }
 
@@ -448,6 +509,7 @@
     let h = `<h2>Projection ${yrs[0]}–${yrs[yrs.length - 1]}</h2>
     <p class="lead">Chaque ligne du budget ${BASE()} évolue selon son indice et sa nature. Ajoutez ici les événements connus (recrutement, fin de contrat, nouvelle dépense…) sous forme d'ajustements.</p>`;
 
+    h += `<div class="card"><h3>Effectifs projetés</h3>${effectifsTable(false)}</div>`;
     h += `<div class="grid g2"><div class="card"><h3>Hypothèses d'évolution annuelle</h3><table><thead><tr><th>Indice</th>${fut.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
       ${Object.keys(T).map((k) => `<tr><td>${M.INDEXES[k]} (%)</td>${fut.map((y) => `<td class="n">${numIn(`hyp.taux.${k}.${y}`, T[k][y], "s", 2)}</td>`).join("")}</tr>`).join("")}
       </tbody></table>
@@ -455,7 +517,7 @@
       <tr><td>Nombre de classes (référence)</td>${yrs.map((y) => `<td class="n">${numIn(`hyp.classes.${y}`, state.hyp.classes[y], "s", 0)}</td>`).join("")}</tr>
       <tr><td>Fonds de roulement visé en fin d'année (€)</td>${yrs.map((y) => `<td class="n">${numIn(`hyp.fdr.${y}`, state.hyp.fdr[y], "", 0)}</td>`).join("")}</tr>
       <tr><td class="muted small">→ excédent à dégager dans l'année</td>${yrs.map((y) => `<td class="n small">${eur(R.scen[y].variationFdr)}</td>`).join("")}</tr>
-      <tr><td>Enfants scolarisés (scénario)</td>${yrs.map((y) => `<td class="n">${nf0.format(R.scen[y].enf)}</td>`).join("")}</tr>
+      <tr><td>Enfants accueillis (scénario, dont hors syndicat)</td>${yrs.map((y) => `<td class="n">${nf0.format(R.scen[y].enfTotal)} <span class="muted small">(${nf0.format(R.scen[y].enfHors)})</span></td>`).join("")}</tr>
       </tbody></table>
       <p class="small muted">Fonds de roulement : en ${BASE()}, le budget prévoit de constituer ${eur2(state.hyp.fdr[BASE()])}. Ce montant revient l'année suivante en résultat reporté (002) ; pour le conserver, laissez le même objectif.</p></div>
 
@@ -503,7 +565,7 @@
      ONGLET : DONNÉES À COMPLÉTER
      ===================================================================== */
   const CHECKS = [
-    ["enfants", "Effectifs par commune et par année", "Le budget ne donne aucun effectif. Saisir les enfants scolarisés par commune de résidence (rentrée 2026 et prévisions 2027-2029, ex. à partir des naissances). C'est la moitié de la clé de cotisation.", "communes"],
+    ["enfants", "Effectifs par commune et par année", "Effectifs 2026 saisis (Blacy 8, Marmeaux 2, Massangis 3, Montréal 7, Talcy 1, Thizy 10, hors syndicat 6) : à confirmer, et à prévoir pour 2027-2029 (naissances, entrées en maternelle, départs en 6e). C'est la moitié de la clé de cotisation.", "communes"],
     ["cle", "Clé de répartition statutaire", "Vérifier dans les statuts / délibérations : 50 % population – 50 % enfants ? Quelle population (municipale ou totale, millésime) ? Quel effectif (rentrée N-1 ou N) ?", "communes"],
     ["transportOrga", "Organisation du transport", "Qui fait quoi : navette méridienne vers la cantine (bus du syndicat ?), ramassage matin/soir (Région Mobigo ? régie ?), sorties, centre de loisirs d'Isle. Indiquer le mode actuel de chaque service.", "transport"],
     ["transportCouts", "Paramètres de coût du transport", "Km par jour, jours de service, consommation, heures de conduite et d'accompagnement, devis autocariste éventuel, âge et valeur du bus.", "transport"],
@@ -522,7 +584,8 @@
     });
     h += `</div><div class="card"><h3>Hypothèses utilisées par défaut</h3><ul class="small" style="margin:0;padding-left:18px;line-height:1.7">
       <li>Populations BANATIC (population totale en vigueur) : Blacy 100, Marmeaux 88, Massangis 339, Montréal 168, Talcy 84, Thizy 192.</li>
-      <li>Enfants : ~40 répartis au prorata de la population (≈ 37 demi-pensionnaires déduits des recettes cantine à 4,30 €/repas sur 140 jours).</li>
+      <li>Enfants 2026 : 31 des communes membres + 6 hors syndicat = 37 (cohérent avec ≈ 37 demi-pensionnaires déduits des recettes cantine à 4,30 €/repas sur 140 jours). Repris à l'identique pour 2027-2029.</li>
+      <li>Les enfants hors syndicat font varier les dépenses (repas, fournitures) mais n'entrent pas dans la clé de cotisation ; aucune participation supplémentaire n'est demandée par défaut.</li>
       <li>2 classes (fournitures scolaires 3 000 € = 1 500 €/classe).</li>
       <li>Indices : inflation 2 %, masse salariale 2,5 % (GVT + revalorisations), carburant 3 %, alimentation 3 %, tarif cantine gelé.</li>
       <li>FCTVA 16,404 % perçu en N+2 ; pas de nouvel investissement après 2026.</li>
@@ -606,6 +669,8 @@
     year: (a) => { ui.year = +a; render(); },
     trYear: (a) => { ui.trYear = +a; render(); },
     view: (a) => { ui.view = a; render(); },
+    matrice: (a) => { ui.matrice = a; render(); },
+    pickCommune: (a) => { ui.commune = a; render(); const d = document.getElementById("detail"); if (d) d.scrollIntoView({ behavior: "smooth" }); },
     goCommune: (a) => { ui.commune = a; ui.tab = "communes"; render(); const d = document.getElementById("detail"); if (d) d.scrollIntoView({ behavior: "smooth" }); },
     addCommune: (a) => {
       const enf = Object.fromEntries(YEARS().map((y) => [y, 0]));
@@ -693,6 +758,16 @@
     const t = el.dataset.t;
     let v = t === "n" ? parseNum(el.value) : t === "b" ? el.checked : el.value;
     setPath(p, v);
+    // Projection automatique des effectifs à partir de l'année de base et de l'évolution annuelle
+    let m;
+    if ((m = p.match(/^communes\.(\d+)\.(tendance|enfants\.(\d+))$/)) && (m[2] === "tendance" || +m[3] === BASE())) {
+      const c = state.communes[+m[1]];
+      projeterEffectifs(c.enfants, c.tendance || 0);
+    }
+    if (p === "hyp.tendanceHors" || p === `hyp.horsMembres.${BASE()}`) {
+      if (!state.hyp.horsMembres) state.hyp.horsMembres = {};
+      projeterEffectifs(state.hyp.horsMembres, state.hyp.tendanceHors || 0);
+    }
     if (p === "cle.pop") state.cle.enf = Math.round((100 - v) * 100) / 100;
     if (p === "cle.enf") state.cle.pop = Math.round((100 - v) * 100) / 100;
     // Une commune candidate qui adhère en N garde ses effectifs ; rien d'autre à faire.
@@ -703,4 +778,5 @@
   });
 
   render();
+  if (window.__migre) toast("Données de départ mises à jour (effectifs réels). Vos scénarios enregistrés restent disponibles.");
 })();
