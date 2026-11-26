@@ -233,12 +233,17 @@
     const mtSum = (f) => L.filter(f).reduce((s, l) => s + (+((l.montants || {})[B] ?? l.montant) || 0), 0);
     const dLines = (f) => mtSum(f) - bpSum(f);
     const reg = (l) => l.id === "r7472";
+    // Transport : Région + carburant / entretien du bus (service Transport) + personnel contractuel (64131, 6454)
+    const trDep = (l) => l.sens === "dep" && l.cat === "TRA";
+    const contract = (l) => l.sens === "dep" && ["64131", "6454"].includes(l.art);
+    const dReg = -dLines(reg), dTrDep = dLines(trDep), dContr = dLines(contract);
     const items = [
-      ["Baisse de la participation de la Région (7472)", -dLines(reg), `${eur(bpSum(reg))} → ${eur(mtSum(reg))}`],
+      ["Transport : baisse de la Région, en partie compensée", dReg + dTrDep + dContr,
+        `Région ${delta(dReg)} · carburant et entretien du bus ${delta(dTrDep)} · personnel contractuel (64131, 6454) ${delta(dContr)}`],
       ["Fin du résultat reporté de 2024", a.report - b.report, `${eur(a.report)} de report avaient réduit les cotisations ${H}`],
       ["Autres recettes (cantine, remboursements…)", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
-      ["Charges de personnel (012)", dLines((l) => l.sens === "dep" && l.chap === "012"), ""],
-      ["Autres dépenses", dLines((l) => l.sens === "dep" && l.chap !== "012"), ""],
+      ["Autres charges de personnel", dLines((l) => l.sens === "dep" && l.chap === "012" && !contract(l)), ""],
+      ["Autres dépenses", dLines((l) => l.sens === "dep" && l.chap !== "012" && !trDep(l)), ""],
       ["Excédent / fonds de roulement visé", b.fdr - a.fdr, `${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
     ];
     const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
