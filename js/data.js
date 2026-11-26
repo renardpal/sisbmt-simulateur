@@ -16,6 +16,7 @@ window.DEFAULT_STATE = {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
     baseYear: 2026,
+    histYear: 2025, // année passée affichée pour comparaison (BP 2025, non modifiable)
     years: [2026, 2027, 2028, 2029],
   },
 
