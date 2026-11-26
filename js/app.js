@@ -25,6 +25,11 @@
       });
       s.version = 7;
     }
+    if (s && s.version === 7) {
+      // Remplace les communes hors membre provisoires par Angely, Coutarnoux, Guillon
+      if (!Array.isArray(s.horsMembres) || s.horsMembres.every((h) => /^Commune hors membre/.test(h.nom))) s.horsMembres = clone(window.DEFAULT_STATE.horsMembres);
+      s.version = 8;
+    }
     return s;
   }
   function load() {
@@ -282,7 +287,7 @@
   function tabCommunes() {
     let h = `<h2>Communes & cotisations</h2>
     <p class="lead">Les cotisations couvrent le <b>besoin de financement</b> du syndicat (dépenses − recettes − résultat reporté + fonds de roulement visé). Elles sont réparties entre les communes membres selon une clé population / enfants scolarisés.</p>`;
-    h += `<div class="note"><b>Effectifs ${BASE()} : 31 enfants des communes membres + 6 enfants de communes hors membre.</b> Remplacez « Commune hors membre 1 / 2 » par les vrais noms. Les années suivantes (surlignées) reprennent ${BASE()} : ajustez-les. Populations : BANATIC (971 hab.).</div>`;
+    h += `<div class="note"><b>Effectifs ${BASE()} : 31 enfants des communes membres + 8 enfants de communes hors membre</b> (Angely 2, Coutarnoux 2, Guillon 4). Les années suivantes (surlignées) reprennent ${BASE()} : ajustez-les. Populations : BANATIC (971 hab.).</div>`;
     h += `<div class="card"><h3>Clé de répartition</h3><div class="bar">
       <label class="inl">Part population ${numIn("cle.pop", state.cle.pop, "s", 1)} %</label>
       <label class="inl">Part enfants scolarisés ${numIn("cle.enf", state.cle.enf, "s", 1)} %</label>

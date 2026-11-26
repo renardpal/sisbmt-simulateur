@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 7,
+  version: 8,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -101,10 +101,11 @@ window.DEFAULT_STATE = {
   // Communes d'origine d'enfants scolarisés au syndicat sans en être membres.
   // Leurs enfants pèsent sur les dépenses (repas, fournitures…) mais elles ne
   // cotisent pas selon la clé ; si « facturée », elles paient le tarif par enfant.
-  // Noms à remplacer : 6 enfants en tout, dont 4 facturés en 2027.
+  // Angely et Coutarnoux facturées (4 enfants × 1 400 € en 2027) ; Guillon non refacturée (effectif à confirmer).
   horsMembres: [
-    { id: "h1", nom: "Commune hors membre 1", enfants: { 2026: 4, 2027: 4, 2028: 4, 2029: 4 }, tendance: 0, facturee: true },
-    { id: "h2", nom: "Commune hors membre 2", enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, facturee: false },
+    { id: "h1", nom: "Angely", enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, facturee: true },
+    { id: "h2", nom: "Coutarnoux", enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, facturee: true },
+    { id: "h3", nom: "Guillon", enfants: { 2026: 4, 2027: 4, 2028: 4, 2029: 4 }, tendance: 0, facturee: false },
   ],
 
   /* ---------------- Clé de répartition ---------------- */
