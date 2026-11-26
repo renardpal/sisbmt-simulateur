@@ -90,7 +90,7 @@ window.DEFAULT_STATE = {
   // membres + 6 enfants hors syndicat). 2027-2029 : recopiés de 2026, à ajuster.
   communes: [
     { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, budgetCommune: 116000, budgetSource: "Comptes 2017 (annuaire-mairie.fr) – à actualiser", statut: "membre" },
-    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, budgetCommune: 88000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
+    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, budgetCommune: 121129, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
     { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, tendance: 0, budgetCommune: 579000, budgetSource: "Comptes 2017 (annuaire-mairie.fr) – à actualiser", statut: "membre" },
     { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, budgetCommune: 168000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
     { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 1, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, budgetCommune: 84000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
