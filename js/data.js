@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 10,
+  version: 11,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -74,7 +74,7 @@ window.DEFAULT_STATE = {
     { id: "r002", sens: "rec", chap: "002", art: "002", lib: "Résultat de fonctionnement reporté", bp25: 18505.12, real25: 0, montant: 0, cat: "FIN", nature: "report", com: "Calculé : fonds de roulement de l'année précédente" },
     { id: "r7067", sens: "rec", chap: "70", art: "7067", lib: "Redevances services périscolaires (cantine)", bp25: 19500, real25: 20665.8, montant: 23000, montants: { 2026: 23000, 2027: 26745.0, 2028: 26745.0, 2029: 26745.0 }, cat: "RES", com: "repas vendu 5 € (4,30 € au BP 2026) × 5349 repas à partir de 2027" },
     { id: "r70878", sens: "rec", chap: "70", art: "70878", lib: "Remboursements de frais par des tiers", bp25: 4135, real25: 4526.46, montant: 9500, cat: "ADM", com: "CCS bus, bâtiment, Coutarnoux et Marmeaux – à ventiler" },
-    { id: "r7472", sens: "rec", chap: "74", art: "7472", lib: "Participation Région", bp25: 44000, real25: 26226.3, montant: 2300, cat: "TRA", com: "personnel dans le bus et RC" },
+    { id: "r7472", sens: "rec", chap: "74", art: "7472", lib: "Participation Région", bp25: 44000, real25: 26226.3, montant: 2300, cat: "TRA", com: "30 % de l\u2019accompagnement dans le bus scolaire" },
     { id: "r74748", sens: "rec", chap: "74", art: "74748", lib: "Participation des communes membres", bp25: 67925, real25: 67925, montant: 107250, cat: "FIN", nature: "cotisations", com: "Calculé : clé population / enfants" },
     { id: "r74888", sens: "rec", chap: "74", art: "74888", lib: "Autres dotations et participations", bp25: 0, real25: 282, montant: 280, cat: "ADM", com: "" },
     { id: "r75888", sens: "rec", chap: "75", art: "75888", lib: "Autres produits de gestion courante", bp25: 5, real25: 0.35, montant: 5, cat: "ADM", com: "PAS" },
@@ -124,13 +124,15 @@ window.DEFAULT_STATE = {
   // Sert à répartir les charges de personnel (012) entre services, au prorata
   // des heures hebdomadaires. HEURES À SAISIR : valeurs provisoires.
   postes: [
+    // Activités réelles des agents du syndicat (la garderie est assurée par la CC du Serein).
+    // HEURES HEBDOMADAIRES PROVISOIRES, sauf indication.
     { id: "p1", lib: "ATSEM", cat: "SCO", heures: 30 },
-    // Conductrice : ~30 min de conduite par jour (≈ 2 h/semaine), le reste en classe et à la cantine
-    { id: "p2", lib: "Conductrice – conduite du bus (≈ 30 min/jour)", cat: "TRA", heures: 2 },
-    { id: "p5", lib: "Conductrice – aide en classe", cat: "SCO", heures: 7 },
-    { id: "p6", lib: "Conductrice – cantine", cat: "RES", heures: 6 },
-    { id: "p3", lib: "Garderie", cat: "GAR", heures: 15 },
-    { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
+    { id: "p5", lib: "Aide en classe (3 demi-journées/semaine)", cat: "SCO", heures: 9 },
+    { id: "p6", lib: "Cantine (service et surveillance)", cat: "RES", heures: 8 },
+    { id: "p4", lib: "Ménage des écoles", cat: "BAT", heures: 10 },
+    { id: "p2", lib: "Conduite du bus du midi (≈ 30 min/jour)", cat: "TRA", heures: 2 },
+    // ≈ 7 700 €/an : la Région en finance 30 % (2 300 € au BP 2026)
+    { id: "p7", lib: "Accompagnement dans le bus scolaire", cat: "TRA", heures: 6 },
   ],
 
 };

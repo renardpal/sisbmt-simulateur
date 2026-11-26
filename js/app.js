@@ -48,6 +48,13 @@
       if (i >= 0) ps.splice(i, 1, ...clone(window.DEFAULT_STATE.postes.filter((p) => ["p2", "p5", "p6"].includes(p.id))));
       s.version = 10;
     }
+    if (s && s.version === 10) {
+      // Postes réels : plus de garderie (assurée par la CC du Serein), ajout de l'accompagnement bus
+      const ps = s.postes || [];
+      const g = ps.find((p) => p.id === "p3" && p.cat === "GAR");
+      if (!ps.length || (g && +g.heures === 15)) s.postes = clone(window.DEFAULT_STATE.postes);
+      s.version = 11;
+    }
     return s;
   }
   function load() {
