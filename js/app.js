@@ -203,7 +203,7 @@
     // Poids dans le budget communal
     h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3><div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}<th class="n">Évol. ${first}→${last}</th></tr></thead><tbody>
       ${membres().map((c) => `<tr><td>${esc(c.nom)}</td><td class="n">${eur(+c.budgetCommune)} <span class="small muted" title="${esc(c.budgetSource || "")}">${/estim/i.test(c.budgetSource || "") ? "(estim.)" : /2017/.test(c.budgetSource || "") ? "(2017)" : ""}</span></td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}<td class="n">${poids(first, c) != null ? `${(poids(last, c) - poids(first, c)) >= 0 ? "+" : "−"}${nfp.format(Math.abs(poids(last, c) - poids(first, c)) * 100)} pt` : "–"}</td></tr>`).join("")}
-      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). <b>Budgets anciens ou estimés</b> : à remplacer par les vrais montants dans « Communes & cotisations ». En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
+      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). Budgets : recettes réelles de fonctionnement des CFU 2025. En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
 
     // Par enfant
     h += `<div class="card"><h3>Cotisation par enfant scolarisé</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
@@ -284,7 +284,7 @@
       <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button></div></div>`;
     {
       const ALL = state.meta.histYear ? [state.meta.histYear, ...YEARS()] : YEARS();
-      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Produits de fonctionnement annuels de chaque commune (budget principal). Les valeurs actuelles sont anciennes (comptes 2017) ou estimées à 1 000 €/habitant : remplacez-les par les montants de vos budgets.</p>
+      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Recettes réelles de fonctionnement de chaque commune (budget principal, hors résultat reporté), d'après les CFU 2025. Budget supposé constant de 2025 à 2029.</p>
         <div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement (€)</th><th>Source</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
         ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td style="min-width:240px">${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}</tr>`).join("")}
         </tbody></table></div></div>`;
