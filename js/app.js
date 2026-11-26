@@ -1,7 +1,7 @@
 /* =====================================================================
    Interface du simulateur (vanilla JS, aucune dépendance)
    Onglets : Synthèse · Communes & cotisations · un onglet par année ·
-   Transport · Données à compléter
+   (les postes du personnel sont dans « Communes & cotisations »)
    ===================================================================== */
 (function () {
   const M = window.Model;
@@ -203,7 +203,7 @@
     // Poids dans le budget communal
     h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3><div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}<th class="n">Évol. ${first}→${last}</th></tr></thead><tbody>
       ${membres().map((c) => `<tr><td>${esc(c.nom)}</td><td class="n">${eur(+c.budgetCommune)} <span class="small muted" title="${esc(c.budgetSource || "")}">${/estim/i.test(c.budgetSource || "") ? "(estim.)" : /2017/.test(c.budgetSource || "") ? "(2017)" : ""}</span></td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}<td class="n">${poids(first, c) != null ? `${(poids(last, c) - poids(first, c)) >= 0 ? "+" : "−"}${nfp.format(Math.abs(poids(last, c) - poids(first, c)) * 100)} pt` : "–"}</td></tr>`).join("")}
-      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). <b>Budgets anciens ou estimés</b> : à remplacer par les vrais montants dans « Communes & cotisations ». En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
+      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). Budgets : recettes réelles de fonctionnement des CFU 2025. En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
 
     // Par enfant
     h += `<div class="card"><h3>Cotisation par enfant scolarisé</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
@@ -242,7 +242,7 @@
       ["Excédent / fonds de roulement visé", b.fdr - a.fdr, `${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
     ];
     const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
-    if (Math.abs(reste) > 0.5) items.push(["Autres (transport, communes hors membre…)", reste, ""]);
+    if (Math.abs(reste) > 0.5) items.push(["Autres (communes hors membre…)", reste, ""]);
     const tot = items.reduce((s, x) => s + x[1], 0);
     const max = Math.max(...items.map((x) => Math.abs(x[1])), 1);
     return `<div class="card"><h3>D'où vient la hausse de ${H} à ${B} ? <span class="muted" style="font-weight:400">(${delta(b.besoin - a.besoin)}, ${dpctTxt(b.besoin, a.besoin)})</span></h3>
@@ -264,7 +264,7 @@
     const why = { RES: "recettes cantine > coût des repas", ADM: "remboursements de tiers > frais d'administration" };
     const negHtml = neg.length ? `<div class="pie-legend" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px">${neg.map(([k, v]) => `<div><span class="sw" style="background:transparent;border:1px solid ${M.CATS[k].color}"></span>${M.CATS[k].lib} <span class="small muted">(${why[k] || "recettes > dépenses"})</span><b class="down">${eur(v / div)}</b><span></span></div>`).join("")}<div><span></span><b style="text-align:left">Coût net total</b><b>${eur(tot)}</b><span></span></div></div>` : "";
     return `<div class="pie-main">${donut(slices, { size: 220, center: eur(tot), sub: unite })}<div>${legend(slices)}${negHtml}</div></div>
-      <p class="small muted">Coût net de chaque service (dépenses − recettes propres). Personnel réparti selon les heures des postes (onglet « Données à compléter »). Hors fonds de roulement et participations des communes hors membre.</p>`;
+      <p class="small muted">Coût net de chaque service (dépenses − recettes propres). Personnel réparti selon les heures des postes (onglet « Communes & cotisations »). Hors fonds de roulement et participations des communes hors membre.</p>`;
   }
 
 
@@ -281,11 +281,10 @@
       <span class="small muted">(les deux parts totalisent toujours 100 %)</span></div></div>`;
     h += `<div class="card"><h3>Communes et effectifs</h3>${effectifsTable()}
       <div class="bar" style="margin:10px 0 0"><button class="btn" data-act="addCommune">+ Ajouter une commune membre</button>
-      <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button>
-      <label class="inl">${chkIn("checklist.enfants", state.checklist.enfants)} Effectifs vérifiés</label></div></div>`;
+      <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button></div></div>`;
     {
       const ALL = state.meta.histYear ? [state.meta.histYear, ...YEARS()] : YEARS();
-      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Produits de fonctionnement annuels de chaque commune (budget principal). Les valeurs actuelles sont anciennes (comptes 2017) ou estimées à 1 000 €/habitant : remplacez-les par les montants de vos budgets.</p>
+      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Recettes réelles de fonctionnement de chaque commune (budget principal, hors résultat reporté), d'après les CFU 2025. Budget supposé constant de 2025 à 2029.</p>
         <div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement (€)</th><th>Source</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
         ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td style="min-width:240px">${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}</tr>`).join("")}
         </tbody></table></div></div>`;
@@ -297,6 +296,7 @@
         ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n"><input class="num" inputmode="decimal" data-p="communes.${i}.cotis2025" data-t="n" data-vide="null" value="${c.cotis2025 == null || c.cotis2025 === "" ? "" : fmtIn(c.cotis2025)}" placeholder="—"></td><td class="n muted">${eur(R[H].besoin * ((R[H].communes.find((x) => x.id === c.id) || {}).share || 0))}</td></tr>`).join("")}
         <tr class="tot"><td>Total</td><td class="n">${eur(R[H].communes.reduce((s, c) => s + c.cotis, 0))}</td><td class="n">${eur(R[H].besoin)}</td></tr></tbody></table></div>`;
     }
+    h += postesCard();
     h += coutParEnfant();
     h += detailCommune();
     return h;
@@ -306,7 +306,7 @@
   // enfants(N) = enfants(base) + évol × (N − base). Chaque année reste modifiable ensuite.
   function effectifsTable() {
     const yrs = YEARS(), nxt = yrs.slice(1);
-    const est = (y) => (state.checklist.enfants || y === BASE() ? "s" : "s est");
+    const est = (y) => (y === BASE() ? "s" : "s est");
     const ncol = 5 + nxt.length + 1;
     let h = `<p class="small muted" style="margin-top:-4px">Saisissez les effectifs ${BASE()} puis une <b>évolution par an</b> (ex. +1, −2) pour projeter ${nxt[0]}–${nxt[nxt.length - 1]} d'un coup ; corrigez ensuite chaque année si besoin (modifier ${BASE()} ou l'évolution recalcule les années suivantes).</p>
       <div class="scroll"><table><thead><tr><th>Commune</th><th>INSEE</th><th class="n">Population</th><th class="n">Enfants ${BASE()}</th><th class="n" title="Enfants en plus ou en moins chaque année">Évol./an</th>${nxt.map((y) => `<th class="n">Enfants ${y}</th>`).join("")}<th></th></tr></thead><tbody>`;
@@ -466,7 +466,7 @@
       extra.forEach((l) => {
         const pv = dp ? (dp.lignes.find((x) => x.src === l.src && x.lib === l.lib) || {}).v || 0 : null;
         tot += l.v; totPrev += pv || 0;
-        h += `<tr class="calc"><td>${esc(l.art)}</td><td>${esc(l.lib)}</td><td>${M.CATS[l.cat].lib}</td>${isBase ? `<td></td><td></td>` : `<td class="n">${eur2(pv)}</td>`}<td class="n">${eur2(l.v)}</td><td class="n">${dp ? delta(l.v - pv, sens === "rec") : ""}</td><td class="small">${l.src === "transport" ? "onglet Transport" : "onglet Communes"}</td><td></td></tr>`;
+        h += `<tr class="calc"><td>${esc(l.art)}</td><td>${esc(l.lib)}</td><td>${M.CATS[l.cat].lib}</td>${isBase ? `<td></td><td></td>` : `<td class="n">${eur2(pv)}</td>`}<td class="n">${eur2(l.v)}</td><td class="n">${dp ? delta(l.v - pv, sens === "rec") : ""}</td><td class="small">onglet Communes</td><td></td></tr>`;
       });
     }
     if (sens === "rec") {
@@ -479,68 +479,17 @@
     return h;
   }
 
-  /* =====================================================================
-     TRANSPORT
-     ===================================================================== */
-  const PARAMS = {
-    commun: [["jours", "Jours de service / an"], ["km", "Km par jour"], ["eleves", "Élèves transportés"]],
-    regie: [["conso", "Conso. (L/100 km)"], ["prixCarb", "Prix carburant (€/L)"], ["entretien", "Entretien (€/an)"], ["assurance", "Assurance véhicule (€/an)"], ["hCond", "Heures conducteur / jour"], ["hAcc", "Heures accompagnateur / jour"], ["coutH", "Coût horaire chargé (€)"], ["provision", "Provision renouvellement (€/an)"], ["recettes", "Recettes liées (€/an)"]],
-    prestataire: [["forfaitJour", "Forfait par jour (€)"], ["prixKm", "Prix au km (€)"], ["hAcc", "Heures accompagnateur / jour"], ["coutH", "Coût horaire chargé (€)"], ["recettes", "Recettes liées (€/an)"]],
-    region: [["partEleve", "Participation par élève (€/an)"], ["hAcc", "Heures accompagnateur / jour"], ["coutH", "Coût horaire chargé (€)"], ["recettes", "Recettes Région (€/an)"]],
-  };
-  function tabTransport() {
-    const yrs = YEARS();
-    let h = `<h2>Transport</h2>
-    <p class="lead">Choisissez le <b>mode de chaque service, année par année</b>. ${BASE()} correspond à la situation actuelle (déjà comprise dans les lignes du budget). Quand une année a un autre mode, l'<b>écart de coût</b> calculé avec vos paramètres est ajouté automatiquement au budget de cette année (au prorata de septembre la première année si coché).</p>
-    <div class="note"><b>À confirmer :</b> les paramètres de coût sont des hypothèses. La participation de la Région passe de 44 000 € (BP 2025) à 2 300 € (2026) : c'est le premier facteur de hausse des cotisations.</div>`;
-    state.transport.forEach((t, i) => {
-      h += `<div class="card"><div class="svc-head">${txtIn(`transport.${i}.nom`, t.nom)}
-        <label class="inl">${chkIn(`transport.${i}.prorata`, t.prorata)} changement à la rentrée de septembre (4/12 la 1re année)</label>
-        <button class="btn small danger" data-act="delService" data-arg="${i}" style="margin-left:auto">Supprimer</button></div>
-        <table style="max-width:900px;margin-bottom:12px"><thead><tr><th>Mode</th>${yrs.map((y) => `<th>${y}${y === BASE() ? " (actuel)" : ""}</th>`).join("")}</tr></thead><tbody>
-        <tr><td></td>${yrs.map((y) => `<td>${selIn(`transport.${i}.modes.${y}`, (t.modes || {})[y], M.MODES)}</td>`).join("")}</tr>
-        <tr><td class="small">Coût net du service</td>${yrs.map((y) => `<td class="n">${eur(R[y].transport[i].cout.net)}</td>`).join("")}</tr>
-        <tr class="sub"><td class="small">Ajouté au budget (écart vs ${BASE()})</td>${yrs.map((y) => `<td class="n">${delta(R[y].transport[i].delta.net)}</td>`).join("")}</tr></tbody></table>
-        <div class="kv" style="grid-template-columns:repeat(3, auto auto);justify-content:start;gap:6px 14px;margin-bottom:12px">${PARAMS.commun.map(([k, l]) => `<span>${l}</span>${numIn(`transport.${i}.commun.${k}`, t.commun[k])}`).join("")}</div>
-        <div class="modes">${["regie", "prestataire", "region"].map((m) => {
-          const used = yrs.filter((y) => (t.modes || {})[y] === m);
-          const cost = M.coutService(t, m);
-          return `<div class="mode ${used.length ? "scn" : ""}"><h4>${M.MODES[m]}${used.length ? `<span class="tag muted">(${used.join(", ")})</span>` : ""}</h4><div class="kv">${PARAMS[m].map(([k, l]) => `<span>${l}</span>${numIn(`transport.${i}.${m}.${k}`, t[m][k])}`).join("")}
-            <b style="margin-top:6px">Coût net annuel</b><b style="margin-top:6px;text-align:right">${eur(cost.net)}</b></div></div>`;
-        }).join("")}</div></div>`;
-    });
-    h += `<button class="btn" data-act="addService">+ Ajouter un service de transport</button>`;
-    return h;
-  }
-
-  /* =====================================================================
-     DONNÉES À COMPLÉTER
-     ===================================================================== */
-  const CHECKS = [
-    ["enfants", "Effectifs par commune et par année", "Effectifs 2026 saisis (Blacy 8, Marmeaux 2, Massangis 3, Montréal 7, Talcy 1, Thizy 10, hors membre 6) : à confirmer, et à prévoir pour 2027-2029. C'est la moitié de la clé de cotisation.", "communes"],
-    ["cle", "Clé de répartition statutaire", "Vérifier dans les statuts : 50 % population – 50 % enfants ? Quelle population (millésime) ? Quel effectif (rentrée N-1 ou N) ?", "communes"],
-    ["transportOrga", "Organisation du transport", "Qui fait quoi : navette méridienne vers la cantine, ramassage matin/soir (Région ? régie ?), sorties, centre de loisirs d'Isle.", "transport"],
-    ["transportCouts", "Paramètres de coût du transport", "Km par jour, jours de service, consommation, heures de conduite et d'accompagnement, devis autocariste éventuel.", "transport"],
-    ["region", "Participation de la Région", "Pourquoi 44 000 € prévus en 2025, 26 226 € réalisés et 2 300 € en 2026 ?", "transport"],
-    ["personnel", "Heures des postes", "ATSEM, conductrice de bus, garderie, ménage : saisir les heures hebdomadaires réelles de chaque poste ci-dessous (valeurs provisoires). Elles servent à répartir le personnel entre services.", "completer"],
-    ["assuranceBus", "Assurance du bus", "La ligne 6168 (3 200 €) contient-elle l'assurance du véhicule ?", "y2026"],
-    ["remboursements", "Remboursements de tiers (70878 : 9 500 €)", "Ventiler : CC du Serein (bus), bâtiment, Coutarnoux… Si les 5 600 € facturés aux communes hors membre en 2027 remplacent une partie de cette ligne, la réduire dans l'onglet 2027.", "y2027"],
-    ["fdr", "Fonds de roulement", "Montant cible (8 054,87 € créés en 2026) et politique pour les années suivantes.", "y2026"],
-  ];
-  function tabACompleter() {
-    let h = `<h2>Données à compléter</h2><p class="lead">Ce qui manque au budget pour fiabiliser les chiffres. Cochez au fur et à mesure.</p><div class="card">`;
-    CHECKS.forEach(([k, t, d, tab]) => {
-      const ok = state.checklist[k];
-      h += `<div class="check ${ok ? "done" : ""}">${chkIn(`checklist.${k}`, ok)}<div><span class="t">${t}</span> <a href="#" class="small" data-act="tab" data-arg="${tab}">→ ouvrir</a></div><div class="d">${d}</div></div>`;
-    });
+  /* ---------------- Postes du personnel ---------------- */
+  function postesCard() {
+    let h = "";
     // Postes : répartition du personnel
     const ps = state.postes || [];
     const totH = ps.reduce((x, p) => x + (+p.heures || 0), 0) || 1;
     const perso = R[BASE() + 1].analytique.PER;
     const catPoste = Object.fromEntries(Object.entries(catOpts()).filter(([k]) => !["PER", "FIN"].includes(k)));
-    h += `</div><div class="card" id="postes"><h3>Postes du syndicat</h3><p class="small muted" style="margin-top:-4px">Les charges de personnel (${eur(perso)} en ${BASE() + 1}) sont réparties entre services au prorata des heures hebdomadaires de chaque poste. Un même agent peut occuper plusieurs lignes (ex. garderie + ménage). <b>Heures provisoires : à remplacer par les vraies.</b></p>
+    h += `<div class="card" id="postes"><h3>Postes du syndicat</h3><p class="small muted" style="margin-top:-4px">Les charges de personnel (${eur(perso)} en ${BASE() + 1}) sont réparties entre services au prorata des heures hebdomadaires de chaque poste. Un même agent peut occuper plusieurs lignes (ex. garderie + ménage). <b>Heures provisoires : à remplacer par les vraies.</b></p>
       <table style="max-width:820px"><thead><tr><th>Poste</th><th>Service</th><th class="n">Heures / semaine</th><th class="n">Part</th><th class="n">Coût réparti ${BASE() + 1}</th><th></th></tr></thead><tbody>
-      ${ps.map((p, i) => `<tr><td>${txtIn(`postes.${i}.lib`, p.lib)}</td><td>${selIn(`postes.${i}.cat`, p.cat, catPoste)}</td><td class="n">${numIn(`postes.${i}.heures`, p.heures, state.checklist.personnel ? "s" : "s est", 1)}</td><td class="n">${pct((+p.heures || 0) / totH)}</td><td class="n">${eur(perso * (+p.heures || 0) / totH)}</td><td><button class="btn small danger" data-act="delPoste" data-arg="${i}">✕</button></td></tr>`).join("")}
+      ${ps.map((p, i) => `<tr><td>${txtIn(`postes.${i}.lib`, p.lib)}</td><td>${selIn(`postes.${i}.cat`, p.cat, catPoste)}</td><td class="n">${numIn(`postes.${i}.heures`, p.heures, "s est", 1)}</td><td class="n">${pct((+p.heures || 0) / totH)}</td><td class="n">${eur(perso * (+p.heures || 0) / totH)}</td><td><button class="btn small danger" data-act="delPoste" data-arg="${i}">✕</button></td></tr>`).join("")}
       <tr class="tot"><td colspan="2">Total</td><td class="n">${nfp.format(totH)} h</td><td class="n">100 %</td><td class="n">${eur(perso)}</td><td></td></tr></tbody></table>
       <div class="bar" style="margin-top:10px"><button class="btn" data-act="addPoste">+ Ajouter un poste</button></div></div>`;
     return h;
@@ -551,12 +500,9 @@
     ["synthese", "Synthèse", tabSynthese],
     ["communes", "Communes & cotisations", tabCommunes],
     ...YEARS().map((y) => ["y" + y, String(y), () => tabAnnee(y)]),
-    ["transport", "Transport", tabTransport],
-    ["completer", "Données à compléter", tabACompleter],
   ];
   function renderNav() {
-    const missing = Object.values(state.checklist).filter((v) => !v).length;
-    document.getElementById("tabs").innerHTML = TABS().map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${ui.tab === k ? "active" : ""}">${l}${k === "completer" && missing ? `<span class="dot" title="${missing} points à vérifier"></span>` : ""}</button>`).join("");
+    document.getElementById("tabs").innerHTML = TABS().map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${ui.tab === k ? "active" : ""}">${l}</button>`).join("");
   }
   function render() {
     renderNav();
@@ -640,15 +586,8 @@
       state.lignes.forEach((l) => { if (l.sens === "dep" && l.montants && !l.nature) l.montants[y] = Math.round((+l.montants[y - 1] || 0) * (1 + t / 100) * 100) / 100; });
       commit();
     },
-    addService: () => {
-      state.transport.push({ id: uid("t"), nom: "Nouveau service", modes: Object.fromEntries(YEARS().map((y) => [y, "aucun"])), prorata: true,
-        commun: { jours: 140, km: 20, eleves: 20 }, regie: { conso: 25, prixCarb: 1.8, entretien: 2000, assurance: 1000, hCond: 1, hAcc: 0, coutH: 24, provision: 0, recettes: 0 },
-        prestataire: { forfaitJour: 100, prixKm: 0, hAcc: 0, coutH: 24, recettes: 0 }, region: { partEleve: 0, hAcc: 0, coutH: 24, recettes: 0 } });
-      commit();
-    },
     addPoste: () => { if (!Array.isArray(state.postes)) state.postes = []; state.postes.push({ id: uid("p"), lib: "Nouveau poste", cat: "SCO", heures: 0 }); commit(); },
     delPoste: (a) => { state.postes.splice(+a, 1); commit(); },
-    delService: (a) => { if (confirm("Supprimer ce service de transport ?")) { state.transport.splice(+a, 1); commit(); } },
     exportJson: () => download("sisbmt-sauvegarde.json", JSON.stringify(state, null, 2), "application/json"),
     importJson: () => document.getElementById("fileIn").click(),
     exportCsv,

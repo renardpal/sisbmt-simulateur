@@ -17,7 +17,6 @@
     FIN: { lib: "Opérations financières", color: "#999999" },
     FDR: { lib: "Fonds de roulement", color: "#cfcfcf" },
   };
-  const MODES = { regie: "Régie (bus + agents du syndicat)", prestataire: "Prestataire (autocariste)", region: "Organisé par la Région", aucun: "Service supprimé" };
   const CHAP_LIB = {
     "002": "Résultat reporté", "023": "Virement à l'investissement", "011": "Charges à caractère général",
     "012": "Charges de personnel", "65": "Autres charges de gestion", "67": "Charges spécifiques",
@@ -27,60 +26,6 @@
   const n = (v) => (typeof v === "number" && isFinite(v) ? v : parseFloat(v) || 0);
   const enfantsDe = (c, y) => n(c.enfants && c.enfants[y] != null ? c.enfants[y] : c.enfants && c.enfants[2026]);
   const montantDe = (l, y) => n(l.montants && l.montants[y] != null ? l.montants[y] : l.montant);
-
-  /* ---------- Transport ---------- */
-  function coutService(svc, mode) {
-    const c = svc.commun, jours = n(c.jours), km = n(c.km);
-    const comps = [];
-    const add = (lib, montant, perso, sens = "dep") => comps.push({ lib, montant, perso: !!perso, sens });
-    if (mode === "regie") {
-      const p = svc.regie;
-      add("Carburant", jours * km * n(p.conso) / 100 * n(p.prixCarb));
-      add("Entretien véhicule", n(p.entretien));
-      add("Assurance véhicule", n(p.assurance));
-      add("Conducteur", jours * n(p.hCond) * n(p.coutH), true);
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
-      add("Provision renouvellement véhicule", n(p.provision));
-      add("Recettes liées (Région, mise à dispo…)", n(p.recettes), false, "rec");
-    } else if (mode === "prestataire") {
-      const p = svc.prestataire;
-      add("Contrat prestataire", jours * (n(p.forfaitJour) + km * n(p.prixKm)));
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
-      add("Recettes liées", n(p.recettes), false, "rec");
-    } else if (mode === "region") {
-      const p = svc.region;
-      add("Participation versée à la Région", n(c.eleves) * n(p.partEleve));
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
-      add("Recettes Région", n(p.recettes), false, "rec");
-    }
-    return totaux(comps);
-  }
-  function totaux(comps) {
-    const dep = comps.filter((x) => x.sens === "dep").reduce((s, x) => s + x.montant, 0);
-    const rec = comps.filter((x) => x.sens === "rec").reduce((s, x) => s + x.montant, 0);
-    const perso = comps.filter((x) => x.perso).reduce((s, x) => s + x.montant, 0);
-    return { comps, dep, rec, perso, net: dep - rec };
-  }
-  function melange(a, b, p) {
-    const map = {};
-    const push = (x, w) => { const k = x.sens + "|" + x.lib; if (!map[k]) map[k] = { ...x, montant: 0 }; map[k].montant += x.montant * w; };
-    a.comps.forEach((x) => push(x, 1 - p));
-    b.comps.forEach((x) => push(x, p));
-    return totaux(Object.values(map));
-  }
-  const modeDe = (svc, y, base) => (svc.modes && svc.modes[y]) || (svc.modes && svc.modes[base]) || "aucun";
-
-  // Coût d'un service une année donnée, et écart avec la situation de l'année de base
-  function transportAnnee(state, y) {
-    const base = state.meta.baseYear;
-    return state.transport.map((svc) => {
-      const mBase = modeDe(svc, base, base), mY = modeDe(svc, y, base), mPrev = y > base ? modeDe(svc, y - 1, base) : mBase;
-      const ref = coutService(svc, mBase);
-      let cout = coutService(svc, mY), part = 1;
-      if (y > base && mY !== mPrev && svc.prorata) { part = 4 / 12; cout = melange(coutService(svc, mPrev), cout, part); }
-      return { id: svc.id, nom: svc.nom, mode: mY, modePrec: mPrev, modeBase: mBase, part, base: ref, cout, delta: { dep: cout.dep - ref.dep, rec: cout.rec - ref.rec, perso: cout.perso - ref.perso, net: cout.net - ref.net } };
-    });
-  }
 
   /* ---------- Une année ---------- */
   function computeYear(state, y) {
@@ -96,15 +41,6 @@
       if (l.nature === "report" || l.nature === "cotisations") continue;
       lignes.push({ src: "ligne", id: l.id, sens: l.sens, chap: l.chap, art: l.art, lib: l.lib, cat: l.cat, v: montantDe(l, y) });
     }
-
-    // Transport : écart avec la situation 2026 quand le mode change
-    const tr = transportAnnee(state, y);
-    const dPerso = tr.reduce((s, t) => s + t.delta.perso, 0);
-    const dAutres = tr.reduce((s, t) => s + t.delta.dep - t.delta.perso, 0);
-    const dRec = tr.reduce((s, t) => s + t.delta.rec, 0);
-    if (Math.abs(dAutres) > 0.005) lignes.push({ src: "transport", sens: "dep", chap: "011", art: "Δ", lib: "Changement de mode de transport (charges)", cat: "TRA", v: dAutres });
-    if (Math.abs(dPerso) > 0.005) lignes.push({ src: "transport", sens: "dep", chap: "012", art: "Δ", lib: "Changement de mode de transport (personnel)", cat: "TRA", v: dPerso });
-    if (Math.abs(dRec) > 0.005) lignes.push({ src: "transport", sens: "rec", chap: "74", art: "Δ", lib: "Changement de mode de transport (recettes)", cat: "TRA", v: dRec });
 
     // Participation des communes hors membre
     const tarif = n((state.hyp.tarifHors || {})[y]);
@@ -163,7 +99,7 @@
     return {
       y, lignes, dep, recAutres, report, fdr, variationFdr, besoin, recTotal: recAutres + report + besoin,
       enf, enfHors, enfTotal, popTot, communes, horsDetail, tarifHors: tarif, recHors, coutNet, coutBrutEnfant, coutNetEnfant, horsCharge, horsResteMembres,
-      transport: tr, analytique, analytiqueVentile, chapitres,
+      analytique, analytiqueVentile, chapitres,
     };
   }
 
@@ -201,7 +137,7 @@
     return out;
   }
 
-  const api = { compute, computeYear, computeHisto, coutService, CATS, MODES, CHAP_LIB };
+  const api = { compute, computeYear, computeHisto, CATS, CHAP_LIB };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Model = api;
 })(typeof window !== "undefined" ? window : globalThis);

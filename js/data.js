@@ -85,16 +85,16 @@ window.DEFAULT_STATE = {
   /* ---------------- Communes ---------------- */
   // Population : BANATIC (population totale regroupée en vigueur, 971 hab.).
   // budgetCommune : produits de fonctionnement annuels de la commune (budget principal),
-  // pour afficher le poids de la cotisation. Valeurs anciennes ou estimées : à actualiser.
+  // pour afficher le poids de la cotisation. Source : CFU 2025 de chaque commune.
   // Enfants : effectifs 2026 communiqués par le syndicat (31 enfants des communes
   // membres + 6 enfants hors syndicat). 2027-2029 : recopiés de 2026, à ajuster.
   communes: [
-    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, budgetCommune: 116000, budgetSource: "Comptes 2017 (annuaire-mairie.fr) – à actualiser", statut: "membre" },
+    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, budgetCommune: 124000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
     { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, budgetCommune: 121129, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
-    { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, tendance: 0, budgetCommune: 579000, budgetSource: "Comptes 2017 (annuaire-mairie.fr) – à actualiser", statut: "membre" },
-    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, budgetCommune: 168000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
-    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 1, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, budgetCommune: 84000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
-    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 10, 2027: 10, 2028: 10, 2029: 10 }, tendance: 0, budgetCommune: 192000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" },
+    { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, tendance: 0, budgetCommune: 597000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, budgetCommune: 247000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 1, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, budgetCommune: 91000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 10, 2027: 10, 2028: 10, 2029: 10 }, tendance: 0, budgetCommune: 155000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
   ],
 
   /* ---------------- Communes hors membre ---------------- */
@@ -109,29 +109,6 @@ window.DEFAULT_STATE = {
 
   /* ---------------- Clé de répartition ---------------- */
   cle: { pop: 50, enf: 50 },
-
-  /* ---------------- Transport ---------------- */
-  // Chaque service a un mode par année (2026 = situation actuelle). Quand le mode
-  // d'une année diffère de 2026, l'écart de coût calculé est ajouté au budget de
-  // cette année (au prorata de septembre la première année si « prorata »).
-  transport: [
-    {
-      id: "navette", nom: "Navette méridienne (bus du syndicat → cantine)",
-      modes: { 2026: "regie", 2027: "regie", 2028: "regie", 2029: "regie" }, prorata: true,
-      commun: { jours: 140, km: 12, eleves: 35 },
-      regie: { conso: 25, prixCarb: 1.8, entretien: 3000, assurance: 1200, hCond: 1, hAcc: 1, coutH: 24, provision: 0, recettes: 0 },
-      prestataire: { forfaitJour: 110, prixKm: 0, hAcc: 1, coutH: 24, recettes: 0 },
-      region: { partEleve: 0, hAcc: 0, coutH: 24, recettes: 0 },
-    },
-    {
-      id: "ramassage", nom: "Ramassage scolaire matin / soir",
-      modes: { 2026: "region", 2027: "region", 2028: "region", 2029: "region" }, prorata: true,
-      commun: { jours: 140, km: 60, eleves: 30 },
-      regie: { conso: 28, prixCarb: 1.8, entretien: 4000, assurance: 1500, hCond: 3, hAcc: 2, coutH: 24, provision: 0, recettes: 40000 },
-      prestataire: { forfaitJour: 220, prixKm: 0, hAcc: 2, coutH: 24, recettes: 0 },
-      region: { partEleve: 0, hAcc: 2, coutH: 24, recettes: 2300 },
-    },
-  ],
 
   /* ---------------- Paramètres ---------------- */
   hyp: {
@@ -152,11 +129,6 @@ window.DEFAULT_STATE = {
     { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
   ],
 
-  /* ---------------- Points à vérifier ---------------- */
-  checklist: {
-    enfants: false, transportOrga: false, transportCouts: false, region: false,
-    personnel: false, assuranceBus: false, remboursements: false, fdr: false, cle: false,
-  },
 };
 
 // Pré-remplissage des années suivantes : même montant qu'en 2026 (0 pour les lignes ponctuelles).
