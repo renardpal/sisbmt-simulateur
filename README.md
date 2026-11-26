@@ -1,6 +1,4 @@
-# Simulateur budgétaire – SISBMT
-
-Simulateur du budget de fonctionnement du Syndicat intercommunal d'intérêt scolaire (siège : Thizy, 89), construit à partir du budget 2025 et de la proposition 2026.
+# Simulateur budgétaire
 
 Site statique : HTML, CSS et JavaScript, sans dépendance ni compilation, hébergé sur GitHub Pages.
 
