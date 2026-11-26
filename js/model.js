@@ -9,6 +9,7 @@
     SCO: { lib: "Scolaire & pédagogie", color: "#2f6fab" },
     RES: { lib: "Restauration scolaire", color: "#d08a2c" },
     TRA: { lib: "Transport", color: "#3c9a74" },
+    GAR: { lib: "Garderie / périscolaire", color: "#2f9bb3" },
     BAT: { lib: "Bâtiments & entretien", color: "#8a6bb8" },
     ADM: { lib: "Administration générale", color: "#6b7a8f" },
     PER: { lib: "Personnel (non ventilé)", color: "#c4566b" },
@@ -112,7 +113,7 @@
       return { id: h.id, nom: h.nom, enf: e, facturee: !!h.facturee, participation: h.facturee ? e * tarif : 0 };
     });
     for (const h of horsDetail)
-      if (h.participation > 0.005) lignes.push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation ${h.nom} (${h.enf} enfant${h.enf > 1 ? "s" : ""} × ${tarif} €)`, cat: "SCO", v: h.participation });
+      if (h.participation > 0.005) lignes.push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation ${h.nom} (${h.enf} enfant${h.enf > 1 ? "s" : ""} × ${tarif} €)`, cat: "FIN", v: h.participation });
 
     const dep = lignes.filter((l) => l.sens === "dep").reduce((s, l) => s + l.v, 0);
     const recAutres = lignes.filter((l) => l.sens === "rec").reduce((s, l) => s + l.v, 0);
@@ -137,7 +138,10 @@
     for (const l of lignes) analytique[l.cat] = (analytique[l.cat] || 0) + (l.sens === "dep" ? l.v : -l.v);
     analytique.FDR = variationFdr;
     const analytiqueVentile = { ...analytique };
-    const key = state.hyp.cleCalculPersonnel || {};
+    // Répartition du personnel : au prorata des heures des postes (sinon ancienne clé en %)
+    const key = {};
+    if (Array.isArray(state.postes) && state.postes.length) state.postes.forEach((p) => (key[p.cat] = (key[p.cat] || 0) + n(p.heures)));
+    else Object.assign(key, (state.hyp && state.hyp.cleCalculPersonnel) || {});
     const keyTot = Object.values(key).reduce((s, v) => s + n(v), 0);
     if (keyTot > 0) {
       const per = analytiqueVentile.PER;

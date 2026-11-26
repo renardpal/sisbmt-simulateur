@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 5,
+  version: 6,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -138,8 +138,17 @@ window.DEFAULT_STATE = {
     // en dehors des remboursements déjà inscrits en 70878 (Coutarnoux…).
     tarifHors: { 2026: 0, 2027: 1400, 2028: 1400, 2029: 1400 },
     fdr: { 2025: 0, 2026: 8054.87, 2027: 8054.87, 2028: 8054.87, 2029: 8054.87 },
-    cleCalculPersonnel: { SCO: 40, RES: 30, TRA: 15, ADM: 15 },
   },
+
+  /* ---------------- Postes ---------------- */
+  // Sert à répartir les charges de personnel (012) entre services, au prorata
+  // des heures hebdomadaires. HEURES À SAISIR : valeurs provisoires.
+  postes: [
+    { id: "p1", lib: "ATSEM", cat: "SCO", heures: 30 },
+    { id: "p2", lib: "Conductrice de bus", cat: "TRA", heures: 15 },
+    { id: "p3", lib: "Garderie", cat: "GAR", heures: 15 },
+    { id: "p4", lib: "Ménage", cat: "BAT", heures: 10 },
+  ],
 
   /* ---------------- Points à vérifier ---------------- */
   checklist: {
