@@ -401,28 +401,15 @@
   }
 
   function detailCommune() {
-    const pool = membres();
-    if (!pool.find((c) => c.id === ui.commune)) ui.commune = pool[0] && pool[0].id;
     const y = ui.year, d = R[y];
-    const c = d.communes.find((x) => x.id === ui.commune);
-    let h = `<div class="card" id="detail"><h3>Détail du calcul de la cotisation</h3><div class="bar">
-      <select class="sel" data-ui="commune">${pool.map((x) => `<option value="${x.id}" ${x.id === ui.commune ? "selected" : ""}>${esc(x.nom)}</option>`).join("")}</select>${yearSeg(y)}</div>`;
-    if (!c) return h + `<p class="muted">Aucune commune membre.</p></div>`;
-    const prev = y > BASE() ? R[y - 1].communes.find((x) => x.id === c.id) : null;
-    h += `<div class="grid g2"><div class="steps">
+    let h = `<div class="card" id="detail"><h3>Détail du calcul des cotisations</h3><div class="bar">${yearSeg(y)}</div>
+      <div class="steps" style="max-width:980px">
       <div class="step"><div class="k">1</div><div class="f"><b>Besoin de financement du syndicat</b><br>
         Dépenses <code>${eur(d.dep)}</code> − recettes hors cotisations <code>${eur(d.recAutres)}</code> − résultat reporté <code>${eur(d.report)}</code> + fonds de roulement visé <code>${eur(d.fdr)}</code></div><div class="r">${eur(d.besoin)}</div></div>
-      <div class="step"><div class="k">2</div><div class="f"><b>Part population (${nfp.format(state.cle.pop)} %)</b><br>
-        ${esc(c.nom)} : <code>${nf0.format(c.pop)} hab.</code> sur <code>${nf0.format(d.popTot)}</code> = <code>${pct(c.sp)}</code><br><code>${eur(d.besoin)}</code> × ${nfp.format(state.cle.pop)} % × ${pct(c.sp)}</div><div class="r">${eur2(c.partPop)}</div></div>
-      <div class="step"><div class="k">3</div><div class="f"><b>Part enfants scolarisés (${nfp.format(state.cle.enf)} %)</b><br>
-        ${esc(c.nom)} : <code>${nf0.format(c.enf)} enfants</code> sur <code>${nf0.format(d.enf)}</code> (communes membres) = <code>${pct(c.se)}</code><br><code>${eur(d.besoin)}</code> × ${nfp.format(state.cle.enf)} % × ${pct(c.se)}</div><div class="r">${eur2(c.partEnf)}</div></div>
-      <div class="step total"><div class="k">=</div><div class="f"><b>Cotisation ${y} – ${esc(c.nom)}</b><br>soit ${pct(c.share)} du total · ${eur2(c.cotis / (c.pop || 1))} par habitant · ${c.enf ? eur(c.cotis / c.enf) + " par enfant" : "aucun enfant"}${(() => { const cc = state.communes.find((x) => x.id === c.id); return cc && +cc.budgetCommune > 0 ? ` · ${pct(c.cotis / cc.budgetCommune)} du budget de la commune` : ""; })()}</div><div class="r">${eur2(c.cotis)}</div></div>
-      ${prev ? `<div class="small muted">${y - 1} : ${eur2(prev.cotis)} → évolution ${delta(c.cotis - prev.cotis)} (${dpctTxt(c.cotis, prev.cotis)}).</div>` : ""}
-    </div>
-    <div><h3 style="margin-top:0">Ce que finance la cotisation de ${esc(c.nom)}</h3><table><thead><tr><th>Service</th><th class="n">Coût net syndicat</th><th class="n">Part de la commune</th></tr></thead><tbody>
-    ${Object.entries(d.analytiqueVentile).filter(([, x]) => Math.abs(x) > 0.5).sort((a, b) => b[1] - a[1]).map(([k, x]) => `<tr><td><span class="sw" style="background:${M.CATS[k].color}"></span>${M.CATS[k].lib}</td><td class="n">${eur(x)}</td><td class="n">${eur(x * c.share)}</td></tr>`).join("")}
-    <tr class="tot"><td>Total</td><td class="n">${eur(d.besoin)}</td><td class="n">${eur(c.cotis)}</td></tr></tbody></table></div></div>`;
-    h += `<h3 style="margin-top:20px">Répartition ${y} entre toutes les communes membres</h3>${repartitionTable(y)}</div>`;
+      <div class="step"><div class="k">2</div><div class="f"><b>Part population (${nfp.format(state.cle.pop)} %)</b> : ${eur(d.besoin)} × ${nfp.format(state.cle.pop)} % = <code>${eur(d.besoin * state.cle.pop / 100)}</code>, réparti selon les habitants de chaque commune (${nf0.format(d.popTot)} au total).</div><div class="r"></div></div>
+      <div class="step"><div class="k">3</div><div class="f"><b>Part enfants (${nfp.format(state.cle.enf)} %)</b> : ${eur(d.besoin)} × ${nfp.format(state.cle.enf)} % = <code>${eur(d.besoin * state.cle.enf / 100)}</code>, réparti selon les enfants scolarisés de chaque commune membre (${nf0.format(d.enf)} au total).</div><div class="r"></div></div>
+      <div class="step total"><div class="k">=</div><div class="f"><b>Cotisation d'une commune</b> = part population + part enfants</div><div class="r">${eur(d.besoin)}</div></div></div>
+      <h3 style="margin-top:20px">Calcul ${y} pour chaque commune</h3>${repartitionTable(y, true)}</div>`;
     return h;
   }
   function repartitionTable(y, compact) {
@@ -583,8 +570,7 @@
     matrice: (a) => { ui.matrice = a; render(); },
     ceYear: (a) => { ui.ceYear = +a; render(); },
     ceTab: (a) => { ui.ceTab = a; render(); },
-    pickCommune: (a) => { ui.commune = a; render(); scrollTo("detail"); },
-    goCommune: (a) => { ui.commune = a; ui.tab = "communes"; render(); scrollTo("detail"); },
+    goCommune: (a) => { ui.ceTab = a; ui.tab = "communes"; render(); scrollTo("coutenfant"); },
     goDetail: (a) => { ui.year = +a; ui.tab = "communes"; render(); scrollTo("detail"); },
     addCommune: () => { state.communes.push({ id: uid("c"), nom: "Nouvelle commune membre", insee: "", pop: 100, enfants: Object.fromEntries(YEARS().map((y) => [y, 0])), tendance: 0, budgetCommune: 100000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" }); commit(); },
     delCommune: (a) => {
@@ -640,7 +626,6 @@
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
-    if (el.dataset.ui === "commune") { ui.commune = el.value; render(); return; }
     if (el.id === "fileIn") {
       const f = el.files[0]; if (!f) return;
       const rd = new FileReader();
