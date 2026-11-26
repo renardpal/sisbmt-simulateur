@@ -16,7 +16,7 @@
 // index : aucun | inflation | salaires | energie | alimentation | tarif
 
 window.DEFAULT_STATE = {
-  version: 2,
+  version: 3,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -139,9 +139,11 @@ window.DEFAULT_STATE = {
     // dépenses (repas, fournitures…) mais n'entrent pas dans la clé de cotisation.
     horsMembres: { 2026: 6, 2027: 6, 2028: 6, 2029: 6 },
     tendanceHors: 0,
-    // Participation demandée par enfant hors syndicat (€/an). 0 par défaut :
-    // les remboursements actuels (Coutarnoux…) sont déjà dans la ligne 70878.
-    fraisHorsMembre: 0,
+    // Participation facturée aux communes d'origine des enfants hors syndicat.
+    // 2027 : 4 enfants facturés 1 400 € (5 600 € encaissés). 2026 : rien de prévu au BP
+    // en dehors des remboursements déjà inscrits en 70878 (Coutarnoux…).
+    horsFactures: { 2026: 0, 2027: 4, 2028: 4, 2029: 4 },
+    tarifHors: { 2026: 0, 2027: 1400, 2028: 1400, 2029: 1400 },
     fdr: { 2025: 0, 2026: 8054.87, 2027: 8054.87, 2028: 8054.87, 2029: 8054.87 },
     coutPoste: 24000,
     cleCalculPersonnel: { SCO: 40, RES: 30, TRA: 15, ADM: 15 },

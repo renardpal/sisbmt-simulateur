@@ -189,8 +189,11 @@
     }
 
     // Participation demandée pour les enfants hors syndicat
-    const fraisHors = n(state.hyp.fraisHorsMembre) * enfHors;
-    if (fraisHors > 0.005) push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation communes extérieures (${enfHors} enfants hors syndicat)`, cat: "SCO", v: fraisHors * indexFactor(state, "inflation", y) });
+    // (nb d'enfants facturés × tarif de l'année ; repli sur l'ancien paramètre unique)
+    const nbFact = state.hyp.horsFactures ? Math.min(enfHors, n(state.hyp.horsFactures[y])) : enfHors;
+    const tarif = state.hyp.tarifHors ? n(state.hyp.tarifHors[y]) : n(state.hyp.fraisHorsMembre);
+    const fraisHors = nbFact * tarif;
+    if (fraisHors > 0.005) push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation communes extérieures (${nbFact} enfant${nbFact > 1 ? "s" : ""} × ${tarif} €)`, cat: "SCO", v: fraisHors });
 
     // Ajustements libres
     for (const a of state.ajustements) {

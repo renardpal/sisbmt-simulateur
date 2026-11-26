@@ -284,6 +284,11 @@
     h += `<tr><td${complet ? ' colspan="3"' : ""}><i>Enfants hors syndicat</i> <span class="small muted">(dans les dépenses, pas dans la clé)</span></td>
       <td class="n">${numIn(`hyp.horsMembres.${BASE()}`, horsM[BASE()] || 0, "s", 0)}</td><td class="n">${numIn("hyp.tendanceHors", state.hyp.tendanceHors || 0, "s", 1)}</td>
       ${yrs.slice(1).map((y) => `<td class="n">${numIn(`hyp.horsMembres.${y}`, horsM[y] || 0, est(y), 0)}</td>`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    const fact = state.hyp.horsFactures || {}, tarif = state.hyp.tarifHors || {};
+    const lab = (t) => `<td${complet ? ' colspan="3"' : ""} style="padding-left:22px" class="small">${t}</td>`;
+    h += `<tr>${lab("dont enfants facturés à leur commune")}${yrs.map((y, j) => `<td class="n">${numIn(`hyp.horsFactures.${y}`, fact[y] || 0, "s", 0)}</td>${j === 0 ? "<td></td>" : ""}`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    h += `<tr>${lab("participation par enfant facturé (€)")}${yrs.map((y, j) => `<td class="n">${numIn(`hyp.tarifHors.${y}`, tarif[y] || 0, "s", 0)}</td>${j === 0 ? "<td></td>" : ""}`).join("")}${complet ? "<td></td>" : ""}</tr>`;
+    h += `<tr>${lab("<b>= recette encaissée</b>")}${yrs.map((y, j) => `<td class="n small">${eur(R.scen[y].recHors)}</td>${j === 0 ? "<td></td>" : ""}`).join("")}${complet ? "<td></td>" : ""}</tr>`;
     h += `<tr class="tot"><td${complet ? ' colspan="3"' : ""}>Total enfants accueillis</td><td class="n">${nf0.format(sumMem(BASE()) + (+horsM[BASE()] || 0))}</td><td></td>${yrs.slice(1).map((y) => `<td class="n">${nf0.format(sumMem(y) + (+horsM[y] || 0))}</td>`).join("")}${complet ? "<td></td>" : ""}</tr>`;
     return h + `</tbody></table></div>`;
   }
@@ -303,7 +308,7 @@
       <div class="kpi"><div class="l">Coût brut par enfant</div><div class="v">${eur(d.coutBrutEnfant)}</div><div class="d">${eur(d.dep)} de dépenses ÷ ${nf0.format(d.enfTotal)} enfants</div></div>
       <div class="kpi"><div class="l">Coût net moyen par enfant</div><div class="v">${eur(moy)}</div><div class="d">après recettes propres (cantine, Région…), hors fonds de roulement</div></div>
       <div class="kpi"><div class="l">Cotisation moyenne par enfant membre</div><div class="v">${eur(d.besoin / (d.enf || 1))}</div><div class="d">${eur(d.besoin)} ÷ ${nf0.format(d.enf)} enfants des communes membres</div></div>
-      <div class="kpi"><div class="l">Enfants hors syndicat</div><div class="v">${eur(d.horsResteMembres)}</div><div class="d">${nf0.format(d.enfHors)} enfants × ${eur(moy)}${d.recHors ? " − " + eur(d.recHors) + " perçus" : ""} : coût supporté par les membres</div></div></div>`;
+      <div class="kpi"><div class="l">Enfants hors syndicat</div><div class="v">${eur(d.horsResteMembres)}</div><div class="d">${nf0.format(d.enfHors)} enfants × ${eur(moy)}${d.recHors ? " − " + eur(d.recHors) + " facturés" : ""} : reste à la charge des membres</div></div></div>`;
 
     h += `<div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Enfants</th><th class="n">Cotisation</th><th class="n">Cotisation par enfant</th><th class="n">Coût moyen par enfant</th><th class="n">Écart</th><th class="n">Coût de ses enfants</th><th class="n">Cotisation − coût de ses enfants</th></tr></thead><tbody>`;
     d.communes.forEach((c) => {
