@@ -1,6 +1,8 @@
 /* =====================================================================
    Moteur de calcul – aucune dépendance au DOM.
-   compute(state) → { ref: {années…}, scen: {années…} }
+   compute(state) → { 2026: {…}, 2027: {…}, … }
+   Chaque année utilise ses propres montants (modifiables dans l'onglet
+   de l'année) ; seules les cotisations et le résultat reporté sont calculés.
    ===================================================================== */
 (function (root) {
   const CATS = {
@@ -14,14 +16,6 @@
     FIN: { lib: "Opérations financières", color: "#999999" },
     FDR: { lib: "Fonds de roulement", color: "#cfcfcf" },
   };
-  const NATURES = {
-    fixe: "Fixe (indexé)", enfant: "Par enfant", classe: "Par classe", ponctuel: "Ponctuel 2026",
-    virement: "Virement invest. (calculé)", report: "Report (calculé)", cotisations: "Cotisations (calculé)",
-  };
-  const INDEXES = {
-    aucun: "Aucune", inflation: "Inflation", salaires: "Masse salariale", energie: "Carburant / énergie",
-    alimentation: "Alimentation", tarif: "Tarif cantine",
-  };
   const MODES = { regie: "Régie (bus + agents du syndicat)", prestataire: "Prestataire (autocariste)", region: "Organisé par la Région", aucun: "Service supprimé" };
   const CHAP_LIB = {
     "002": "Résultat reporté", "023": "Virement à l'investissement", "011": "Charges à caractère général",
@@ -30,198 +24,114 @@
   };
 
   const n = (v) => (typeof v === "number" && isFinite(v) ? v : parseFloat(v) || 0);
-
-  function indexFactor(state, type, y) {
-    const base = state.meta.baseYear;
-    if (!type || type === "aucun" || y <= base) return 1;
-    const t = state.hyp.taux[type] || {};
-    let f = 1;
-    for (let k = base + 1; k <= y; k++) f *= 1 + n(t[k]) / 100;
-    return f;
-  }
-
-  /* ---------- Communes actives ---------- */
-  function communesActives(state, y, scen) {
-    return state.communes.filter((c) => {
-      if (c.statut === "membre") return true;
-      return scen && c.actif && y >= n(c.annee);
-    });
-  }
   const enfantsDe = (c, y) => n(c.enfants && c.enfants[y] != null ? c.enfants[y] : c.enfants && c.enfants[2026]);
+  const montantDe = (l, y) => n(l.montants && l.montants[y] != null ? l.montants[y] : l.montant);
 
   /* ---------- Transport ---------- */
-  function coutService(state, svc, mode, y, kmExtra) {
-    const c = svc.commun, jours = n(c.jours), km = n(c.km) + n(kmExtra);
-    const I = (t) => indexFactor(state, t, y);
+  function coutService(svc, mode) {
+    const c = svc.commun, jours = n(c.jours), km = n(c.km);
     const comps = [];
-    const add = (lib, montant, idx, perso, sens = "dep") => comps.push({ lib, montant: montant * I(idx), perso: !!perso, sens });
+    const add = (lib, montant, perso, sens = "dep") => comps.push({ lib, montant, perso: !!perso, sens });
     if (mode === "regie") {
       const p = svc.regie;
-      add("Carburant", jours * km * n(p.conso) / 100 * n(p.prixCarb), "energie");
-      add("Entretien véhicule", n(p.entretien), "inflation");
-      add("Assurance véhicule", n(p.assurance), "inflation");
-      add("Conducteur", jours * n(p.hCond) * n(p.coutH), "salaires", true);
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), "salaires", true);
-      add("Provision renouvellement véhicule", n(p.provision), "aucun");
-      add("Recettes liées (Région, mise à dispo…)", n(p.recettes), "aucun", false, "rec");
+      add("Carburant", jours * km * n(p.conso) / 100 * n(p.prixCarb));
+      add("Entretien véhicule", n(p.entretien));
+      add("Assurance véhicule", n(p.assurance));
+      add("Conducteur", jours * n(p.hCond) * n(p.coutH), true);
+      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
+      add("Provision renouvellement véhicule", n(p.provision));
+      add("Recettes liées (Région, mise à dispo…)", n(p.recettes), false, "rec");
     } else if (mode === "prestataire") {
       const p = svc.prestataire;
-      add("Contrat prestataire", jours * (n(p.forfaitJour) + km * n(p.prixKm)), "inflation");
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), "salaires", true);
-      add("Recettes liées", n(p.recettes), "aucun", false, "rec");
+      add("Contrat prestataire", jours * (n(p.forfaitJour) + km * n(p.prixKm)));
+      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
+      add("Recettes liées", n(p.recettes), false, "rec");
     } else if (mode === "region") {
       const p = svc.region;
-      add("Participation versée à la Région", n(c.eleves) * n(p.partEleve), "inflation");
-      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), "salaires", true);
-      add("Recettes Région", n(p.recettes), "aucun", false, "rec");
+      add("Participation versée à la Région", n(c.eleves) * n(p.partEleve));
+      add("Accompagnateur", jours * n(p.hAcc) * n(p.coutH), true);
+      add("Recettes Région", n(p.recettes), false, "rec");
     }
+    return totaux(comps);
+  }
+  function totaux(comps) {
     const dep = comps.filter((x) => x.sens === "dep").reduce((s, x) => s + x.montant, 0);
     const rec = comps.filter((x) => x.sens === "rec").reduce((s, x) => s + x.montant, 0);
     const perso = comps.filter((x) => x.perso).reduce((s, x) => s + x.montant, 0);
     return { comps, dep, rec, perso, net: dep - rec };
   }
-
-  function blend(a, b, p) {
-    // a*(1-p) + b*p, composante par composante (par libellé)
+  function melange(a, b, p) {
     const map = {};
-    const push = (x, w) => {
-      const k = x.sens + "|" + x.lib;
-      if (!map[k]) map[k] = { ...x, montant: 0 };
-      map[k].montant += x.montant * w;
-    };
+    const push = (x, w) => { const k = x.sens + "|" + x.lib; if (!map[k]) map[k] = { ...x, montant: 0 }; map[k].montant += x.montant * w; };
     a.comps.forEach((x) => push(x, 1 - p));
     b.comps.forEach((x) => push(x, p));
-    const comps = Object.values(map);
-    const dep = comps.filter((x) => x.sens === "dep").reduce((s, x) => s + x.montant, 0);
-    const rec = comps.filter((x) => x.sens === "rec").reduce((s, x) => s + x.montant, 0);
-    const perso = comps.filter((x) => x.perso).reduce((s, x) => s + x.montant, 0);
-    return { comps, dep, rec, perso, net: dep - rec };
+    return totaux(Object.values(map));
   }
+  const modeDe = (svc, y, base) => (svc.modes && svc.modes[y]) || (svc.modes && svc.modes[base]) || "aucun";
 
-  function transportAnnee(state, y, scen) {
-    const res = [];
-    for (const svc of state.transport) {
-      const ref = coutService(state, svc, svc.modeActuel, y, 0);
-      let sc = ref, part = 0;
-      if (scen) {
-        const kmExtra = communesActives(state, y, true)
-          .filter((c) => c.statut !== "membre")
-          .reduce((s, c) => s + n(c.km && c.km[svc.id]), 0);
-        const eff = n(svc.anneeEffet);
-        const changed = svc.modeScenario !== svc.modeActuel;
-        part = !changed || y < eff ? 0 : y === eff && svc.prorata ? 4 / 12 : 1;
-        const cur = coutService(state, svc, svc.modeActuel, y, kmExtra);
-        const nw = coutService(state, svc, svc.modeScenario, y, kmExtra);
-        sc = part === 0 ? cur : part === 1 ? nw : blend(cur, nw, part);
-      }
-      res.push({ id: svc.id, nom: svc.nom, ref, scen: sc, part, delta: { dep: sc.dep - ref.dep, rec: sc.rec - ref.rec, perso: sc.perso - ref.perso, net: sc.net - ref.net } });
-    }
-    return res;
-  }
-
-  /* ---------- Investissement ---------- */
-  function investAnnee(state, y, scen) {
-    const inv = state.invest;
-    const projets = inv.projets.filter((p) => n(p.annee) === y && (scen || !p.scenarioSeul));
-    const dep = projets.reduce((s, p) => s + n(p.montant), 0);
-    const subv = projets.reduce((s, p) => s + n(p.subv), 0);
-    const yRef = y - n(inv.fctvaDecalage);
-    let base = 0;
-    if (inv.depensesPassees && inv.depensesPassees[yRef] != null) base = n(inv.depensesPassees[yRef]);
-    else base = inv.projets.filter((p) => n(p.annee) === yRef && (scen || !p.scenarioSeul)).reduce((s, p) => s + n(p.montant), 0);
-    const fctva = y === state.meta.baseYear ? 0 : base * n(inv.fctvaTaux) / 100; // 2026 : FCTVA non inscrit au BP
-    const solde = y === state.meta.baseYear ? n(inv.solde001) : 0;
-    const virement = Math.max(0, dep - subv - fctva - solde);
-    return { projets, dep, subv, fctva, solde, virement, excedent: Math.max(0, subv + fctva + solde - dep) };
+  // Coût d'un service une année donnée, et écart avec la situation de l'année de base
+  function transportAnnee(state, y) {
+    const base = state.meta.baseYear;
+    return state.transport.map((svc) => {
+      const mBase = modeDe(svc, base, base), mY = modeDe(svc, y, base), mPrev = y > base ? modeDe(svc, y - 1, base) : mBase;
+      const ref = coutService(svc, mBase);
+      let cout = coutService(svc, mY), part = 1;
+      if (y > base && mY !== mPrev && svc.prorata) { part = 4 / 12; cout = melange(coutService(svc, mPrev), cout, part); }
+      return { id: svc.id, nom: svc.nom, mode: mY, modePrec: mPrev, modeBase: mBase, part, base: ref, cout, delta: { dep: cout.dep - ref.dep, rec: cout.rec - ref.rec, perso: cout.perso - ref.perso, net: cout.net - ref.net } };
+    });
   }
 
   /* ---------- Une année ---------- */
-  function computeYear(state, y, scen) {
+  function computeYear(state, y) {
     const base = state.meta.baseYear;
-    const actives = communesActives(state, y, scen);
-    const membresBase = communesActives(state, base, false);
-    const hors = (yy) => n((state.hyp.horsMembres || {})[yy]);
-    // Effectif total accueilli (membres + hors syndicat) : pilote les dépenses variables.
-    const enfBase = membresBase.reduce((s, c) => s + enfantsDe(c, base), 0) + hors(base) || 1;
-    // Effectif des communes cotisantes : sert à la clé de répartition.
-    const enf = actives.reduce((s, c) => s + enfantsDe(c, y), 0);
-    const enfHors = hors(y);
+    const membres = state.communes.filter((c) => c.statut === "membre");
+    const horsListe = Array.isArray(state.horsMembres) ? state.horsMembres : [];
+    const enf = membres.reduce((s, c) => s + enfantsDe(c, y), 0);
+    const enfHors = horsListe.reduce((s, h) => s + enfantsDe(h, y), 0);
     const enfTotal = enf + enfHors;
-    const classesBase = n(state.hyp.classes[base]) || 1;
-    const nouvellesClasses = scen ? actives.filter((c) => c.statut !== "membre" && c.ouvreClasse).length : 0;
-    const classes = n(state.hyp.classes[y]) + nouvellesClasses;
-    const postesSupp = scen ? actives.filter((c) => c.statut !== "membre" && c.posteSupp).length : 0;
 
     const lignes = [];
-    const push = (l) => lignes.push(l);
-
-    // Lignes du budget
     for (const l of state.lignes) {
-      if (["virement", "report", "cotisations"].includes(l.nature)) continue;
-      let v;
-      if (l.nature === "ponctuel") v = y === base ? n(l.montant) : 0;
-      else {
-        v = n(l.montant) * indexFactor(state, l.index, y);
-        if (l.nature === "enfant") v *= enfTotal / enfBase;
-        if (l.nature === "classe") v *= classes / classesBase;
-      }
-      push({ src: "ligne", id: l.id, sens: l.sens, chap: l.chap, art: l.art, lib: l.lib, cat: l.cat, v });
+      if (l.nature === "report" || l.nature === "cotisations") continue;
+      lignes.push({ src: "ligne", id: l.id, sens: l.sens, chap: l.chap, art: l.art, lib: l.lib, cat: l.cat, v: montantDe(l, y) });
     }
 
-    // Investissement → virement
-    const inv = investAnnee(state, y, scen);
-    push({ src: "virement", sens: "dep", chap: "023", art: "023", lib: "Virement à la section d'investissement", cat: "FIN", v: inv.virement });
+    // Transport : écart avec la situation 2026 quand le mode change
+    const tr = transportAnnee(state, y);
+    const dPerso = tr.reduce((s, t) => s + t.delta.perso, 0);
+    const dAutres = tr.reduce((s, t) => s + t.delta.dep - t.delta.perso, 0);
+    const dRec = tr.reduce((s, t) => s + t.delta.rec, 0);
+    if (Math.abs(dAutres) > 0.005) lignes.push({ src: "transport", sens: "dep", chap: "011", art: "Δ", lib: "Changement de mode de transport (charges)", cat: "TRA", v: dAutres });
+    if (Math.abs(dPerso) > 0.005) lignes.push({ src: "transport", sens: "dep", chap: "012", art: "Δ", lib: "Changement de mode de transport (personnel)", cat: "TRA", v: dPerso });
+    if (Math.abs(dRec) > 0.005) lignes.push({ src: "transport", sens: "rec", chap: "74", art: "Δ", lib: "Changement de mode de transport (recettes)", cat: "TRA", v: dRec });
 
-    // Transport (écart scénario / référence)
-    const tr = transportAnnee(state, y, scen);
-    if (scen) {
-      const dPerso = tr.reduce((s, t) => s + t.delta.perso, 0);
-      const dAutres = tr.reduce((s, t) => s + t.delta.dep - t.delta.perso, 0);
-      const dRec = tr.reduce((s, t) => s + t.delta.rec, 0);
-      if (Math.abs(dAutres) > 0.005) push({ src: "transport", sens: "dep", chap: "011", art: "Δ", lib: "Transport – écart scénario (charges)", cat: "TRA", v: dAutres });
-      if (Math.abs(dPerso) > 0.005) push({ src: "transport", sens: "dep", chap: "012", art: "Δ", lib: "Transport – écart scénario (personnel)", cat: "TRA", v: dPerso });
-      if (Math.abs(dRec) > 0.005) push({ src: "transport", sens: "rec", chap: "74", art: "Δ", lib: "Transport – écart scénario (recettes)", cat: "TRA", v: dRec });
-    }
-
-    // Postes supplémentaires (ouverture de classe liée à une adhésion)
-    if (postesSupp > 0) {
-      push({ src: "poste", sens: "dep", chap: "012", art: "Δ", lib: `Poste(s) supplémentaire(s) ×${postesSupp}`, cat: "SCO", v: postesSupp * n(state.hyp.coutPoste) * indexFactor(state, "salaires", y) });
-    }
-
-    // Participation demandée pour les enfants hors syndicat
-    // (nb d'enfants facturés × tarif de l'année ; repli sur l'ancien paramètre unique)
-    const nbFact = state.hyp.horsFactures ? Math.min(enfHors, n(state.hyp.horsFactures[y])) : enfHors;
-    const tarif = state.hyp.tarifHors ? n(state.hyp.tarifHors[y]) : n(state.hyp.fraisHorsMembre);
-    const fraisHors = nbFact * tarif;
-    if (fraisHors > 0.005) push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation communes extérieures (${nbFact} enfant${nbFact > 1 ? "s" : ""} × ${tarif} €)`, cat: "SCO", v: fraisHors });
-
-    // Ajustements libres
-    for (const a of state.ajustements) {
-      if (y < n(a.de) || y > n(a.a)) continue;
-      if (a.portee === "scenario" && !scen) continue;
-      const v = n(a.montant) * indexFactor(state, a.index || "aucun", y);
-      push({ src: "ajust", sens: a.sens, chap: a.sens === "dep" ? (a.cat === "PER" ? "012" : "011") : "70", art: "+", lib: a.lib || "Ajustement", cat: a.cat || "ADM", v });
-    }
+    // Participation des communes hors membre
+    const tarif = n((state.hyp.tarifHors || {})[y]);
+    const horsDetail = horsListe.map((h) => {
+      const e = enfantsDe(h, y);
+      return { id: h.id, nom: h.nom, enf: e, facturee: !!h.facturee, participation: h.facturee ? e * tarif : 0 };
+    });
+    for (const h of horsDetail)
+      if (h.participation > 0.005) lignes.push({ src: "hors", sens: "rec", chap: "74", art: "74748", lib: `Participation ${h.nom} (${h.enf} enfant${h.enf > 1 ? "s" : ""} × ${tarif} €)`, cat: "SCO", v: h.participation });
 
     const dep = lignes.filter((l) => l.sens === "dep").reduce((s, l) => s + l.v, 0);
     const recAutres = lignes.filter((l) => l.sens === "rec").reduce((s, l) => s + l.v, 0);
-    const fdrPrev = y === base ? 0 : n(state.hyp.fdr[y - 1]);
-    const report = y === base ? n((state.lignes.find((l) => l.nature === "report") || {}).montant) : fdrPrev;
+    const report = y === base ? montantDe(state.lignes.find((l) => l.nature === "report") || {}, y) : n(state.hyp.fdr[y - 1]);
     const fdr = n(state.hyp.fdr[y]);
     const variationFdr = fdr - report;
     const besoin = dep - recAutres - report + fdr;
 
-    // Répartition entre communes
-    const popTot = actives.reduce((s, c) => s + n(c.pop), 0) || 1;
-    const enfTot = enf || 1;
+    // Répartition entre communes membres
+    const popTot = membres.reduce((s, c) => s + n(c.pop), 0) || 1;
     const wP = n(state.cle.pop) / 100, wE = n(state.cle.enf) / 100;
-    const communes = actives.map((c) => {
-      const sp = n(c.pop) / popTot, se = enfantsDe(c, y) / enfTot;
+    const communes = membres.map((c) => {
+      const e = enfantsDe(c, y);
+      const sp = n(c.pop) / popTot, se = e / (enf || 1);
       const partPop = besoin * wP * sp, partEnf = besoin * wE * se;
-      return { id: c.id, nom: c.nom, statut: c.statut, pop: n(c.pop), enf: enfantsDe(c, y), sp, se, share: wP * sp + wE * se, partPop, partEnf, cotis: partPop + partEnf };
+      return { id: c.id, nom: c.nom, pop: n(c.pop), enf: e, sp, se, share: wP * sp + wE * se, partPop, partEnf, cotis: partPop + partEnf };
     });
 
-    // Analytique (coût net par service)
+    // Coût net par service
     const analytique = {};
     Object.keys(CATS).forEach((k) => (analytique[k] = 0));
     for (const l of lignes) analytique[l.cat] = (analytique[l.cat] || 0) + (l.sens === "dep" ? l.v : -l.v);
@@ -235,39 +145,31 @@
       for (const k in key) analytiqueVentile[k] += per * n(key[k]) / keyTot;
     }
 
-    // Chapitres
-    const chapitres = { dep: {}, rec: {} };
-    for (const l of lignes) chapitres[l.sens][l.chap] = (chapitres[l.sens][l.chap] || 0) + l.v;
-    chapitres.rec["002"] = (chapitres.rec["002"] || 0) + report;
-    chapitres.rec["74748"] = besoin;
-
-    // Coûts moyens par enfant accueilli (membres + hors syndicat)
-    const recHors = lignes.filter((l) => l.src === "hors").reduce((s, l) => s + l.v, 0);
-    // coût de fonctionnement net des recettes propres (cantine, Région…), hors fonds de roulement
-    // et avant toute participation des communes (membres ou extérieures)
+    // Coûts moyens par enfant accueilli (membres + hors membre)
+    const recHors = horsDetail.reduce((s, h) => s + h.participation, 0);
     const coutNet = dep - (recAutres - recHors);
     const coutBrutEnfant = dep / (enfTotal || 1);
     const coutNetEnfant = coutNet / (enfTotal || 1);
-    const horsCharge = coutNetEnfant * enfHors; // coût net des enfants hors syndicat…
-    const horsResteMembres = horsCharge - recHors; // …dont reste à la charge des membres
+    const horsCharge = coutNetEnfant * enfHors;
+    const horsResteMembres = horsCharge - recHors;
+
+    const chapitres = { dep: {}, rec: {} };
+    for (const l of lignes) chapitres[l.sens][l.chap] = (chapitres[l.sens][l.chap] || 0) + l.v;
 
     return {
-      y, scen, lignes, dep, recAutres, report, fdr, variationFdr, besoin,
-      recTotal: recAutres + report + besoin,
-      enf, enfHors, enfTotal, enfBase, classes, coutNet, coutBrutEnfant, coutNetEnfant, recHors, horsCharge, horsResteMembres, popTot, communes, transport: tr, invest: inv, analytique, analytiqueVentile, chapitres, postesSupp,
+      y, lignes, dep, recAutres, report, fdr, variationFdr, besoin, recTotal: recAutres + report + besoin,
+      enf, enfHors, enfTotal, popTot, communes, horsDetail, tarifHors: tarif, recHors, coutNet, coutBrutEnfant, coutNetEnfant, horsCharge, horsResteMembres,
+      transport: tr, analytique, analytiqueVentile, chapitres,
     };
   }
 
   function compute(state) {
-    const out = { ref: {}, scen: {} };
-    for (const y of state.meta.years) {
-      out.ref[y] = computeYear(state, y, false);
-      out.scen[y] = computeYear(state, y, true);
-    }
+    const out = {};
+    for (const y of state.meta.years) out[y] = computeYear(state, y);
     return out;
   }
 
-  const api = { compute, computeYear, coutService, indexFactor, CATS, NATURES, INDEXES, MODES, CHAP_LIB };
+  const api = { compute, computeYear, coutService, CATS, MODES, CHAP_LIB };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Model = api;
 })(typeof window !== "undefined" ? window : globalThis);
