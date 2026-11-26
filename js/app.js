@@ -68,6 +68,7 @@
 
   /* ---------------- Graphiques SVG ---------------- */
   function bars(labels, values, color = "#1f4e79", H = 220) {
+    const colorOf = (i) => (Array.isArray(color) ? color[i] : color);
     const W = 640, pl = 64, pr = 10, pt = 22, pb = 30;
     const max = Math.max(1, ...values) * 1.12;
     const gw = (W - pl - pr) / labels.length, bw = Math.min(70, gw * 0.55);
@@ -79,7 +80,7 @@
     }
     labels.forEach((lab, i) => {
       const v = values[i], x = pl + gw * i + (gw - bw) / 2, yy = y(Math.max(0, v));
-      g += `<rect x="${x}" y="${yy}" width="${bw}" height="${Math.max(0, H - pb - yy)}" fill="${color}" rx="2"><title>${lab} : ${eur(v)}</title></rect>`;
+      g += `<rect x="${x}" y="${yy}" width="${bw}" height="${Math.max(0, H - pb - yy)}" fill="${colorOf(i)}" rx="2"><title>${lab} : ${eur(v)}</title></rect>`;
       g += `<text x="${x + bw / 2}" y="${yy - 6}" font-size="11" font-weight="600" text-anchor="middle" fill="#333">${eur(v)}</text>`;
       g += `<text x="${x + bw / 2}" y="${H - 10}" font-size="11" text-anchor="middle" fill="#444">${lab}</text>`;
     });
@@ -114,6 +115,36 @@
     const max = Math.max(1, ...rows.map(([, v]) => Math.abs(v)));
     return `<div class="hbars">${rows.map(([k, v]) => `<div class="row"><div><span class="sw" style="background:${M.CATS[k].color}"></span>${M.CATS[k].lib}</div><div class="track"><div class="fill" style="width:${(Math.abs(v) / max) * 100}%;background:${M.CATS[k].color};opacity:${v < 0 ? 0.4 : 1}"></div></div><div class="n" style="text-align:right">${eur(v)}</div></div>`).join("")}</div>`;
   }
+  // Camembert (anneau) : slices = [{ label, value, color }] (valeurs positives)
+  function donut(slices, opt = {}) {
+    const S = opt.size || 170, r = S / 2 - 4, ri = r * (opt.inner ?? 0.6), cx = S / 2, cy = S / 2;
+    const pos = slices.filter((s) => s.value > 0.5);
+    const tot = pos.reduce((a, s) => a + s.value, 0) || 1;
+    let a0 = -Math.PI / 2, g = "";
+    const pt = (rad, a) => `${cx + rad * Math.cos(a)},${cy + rad * Math.sin(a)}`;
+    pos.forEach((s) => {
+      const f = s.value / tot, a1 = a0 + f * 2 * Math.PI;
+      if (f > 0.9999) {
+        g += `<circle cx="${cx}" cy="${cy}" r="${(r + ri) / 2}" fill="none" stroke="${s.color}" stroke-width="${r - ri}"><title>${esc(s.label)} : ${eur(s.value)}</title></circle>`;
+      } else {
+        const large = f > 0.5 ? 1 : 0;
+        g += `<path d="M${pt(r, a0)} A${r},${r} 0 ${large} 1 ${pt(r, a1)} L${pt(ri, a1)} A${ri},${ri} 0 ${large} 0 ${pt(ri, a0)} Z" fill="${s.color}" stroke="#fff" stroke-width="1.5"><title>${esc(s.label)} : ${eur(s.value)} (${pct(f)})</title></path>`;
+        if (opt.labels !== false && f >= 0.07) {
+          const am = (a0 + a1) / 2, rm = (r + ri) / 2;
+          g += `<text x="${cx + rm * Math.cos(am)}" y="${cy + rm * Math.sin(am) + 3.5}" font-size="${S > 200 ? 11 : 9.5}" font-weight="600" text-anchor="middle" fill="#fff">${Math.round(f * 100)} %</text>`;
+        }
+      }
+      a0 = a1;
+    });
+    if (opt.center) g += `<text x="${cx}" y="${cy + (opt.sub ? -1 : 5)}" font-size="${S > 200 ? 20 : 15}" font-weight="700" text-anchor="middle" fill="#1d2433">${opt.center}</text>`;
+    if (opt.sub) g += `<text x="${cx}" y="${cy + 15}" font-size="${S > 200 ? 11 : 9.5}" text-anchor="middle" fill="#6b7280">${opt.sub}</text>`;
+    return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" role="img" style="max-width:100%">${g}</svg>`;
+  }
+  const legend = (slices, fmt = eur) => {
+    const tot = slices.filter((s) => s.value > 0.5).reduce((a, s) => a + s.value, 0) || 1;
+    return `<div class="pie-legend">${slices.filter((s) => s.value > 0.5).map((s) => `<div><span class="sw" style="background:${s.color}"></span>${esc(s.label)}<b>${fmt(s.value)}</b><span class="muted">${pct(s.value / tot)}</span></div>`).join("")}</div>`;
+  };
+
   const membres = () => state.communes.filter((c) => c.statut === "membre");
   const cotisDe = (y, id) => (R[y].communes.find((x) => x.id === id) || {}).cotis || 0;
 
@@ -121,22 +152,33 @@
      SYNTHÈSE
      ===================================================================== */
   function tabSynthese() {
-    const yrs = YEARS(), first = yrs[0], last = yrs[yrs.length - 1];
+    const yrs = YEARS(), H = state.meta.histYear, ALL = H ? [H, ...yrs] : yrs;
+    const first = ALL[0], last = ALL[ALL.length - 1];
+    const estime = H && R[H].communes.some((c) => c.estime);
+    const lib = (y) => (y === H ? `${y} <span class="small muted">(BP)</span>` : y === BASE() ? `${y} <span class="small muted">(budget)</span>` : `${y} <span class="small muted">(projection)</span>`);
     let h = `<h2>Synthèse ${first}–${last}</h2>
-    <p class="lead">Évolution des cotisations des communes membres, année par année. Les montants de chaque année se modifient dans les onglets ${yrs.join(", ")} ; les effectifs et la clé de répartition dans « Communes & cotisations ».</p>`;
+    <p class="lead">Évolution des cotisations des communes membres : ${H ? `${H} (budget primitif), ` : ""}${BASE()} (budget) et la projection ${yrs[1]}–${last}. Les montants de chaque année se modifient dans les onglets ${yrs.join(", ")} ; les effectifs et la clé dans « Communes & cotisations ».</p>`;
 
-    h += `<div class="kpis">${yrs.map((y, i) => `<div class="kpi"><div class="l">Cotisations ${y}</div><div class="v">${eur(R[y].besoin)}</div><div class="d">${i ? `${delta(R[y].besoin - R[yrs[i - 1]].besoin)} (${dpctTxt(R[y].besoin, R[yrs[i - 1]].besoin)}) vs ${yrs[i - 1]}` : "budget 2026"}</div></div>`).join("")}</div>`;
+    h += `<div class="kpis">${ALL.map((y, i) => `<div class="kpi"><div class="l">Cotisations ${y}${y === H ? " (BP)" : y > BASE() ? " (projection)" : ""}</div><div class="v">${eur(R[y].besoin)}</div><div class="d">${i ? `${delta(R[y].besoin - R[ALL[i - 1]].besoin)} (${dpctTxt(R[y].besoin, R[ALL[i - 1]].besoin)}) vs ${ALL[i - 1]}` : "budget primitif " + y}</div></div>`).join("")}</div>`;
 
+    const colors = ALL.map((y) => (y === H ? "#9aa5b4" : y === BASE() ? "#b4232f" : "#1f4e79"));
     h += `<div class="grid g2">
-      <div class="card"><h3>Cotisations totales par année</h3>${bars(yrs, yrs.map((y) => R[y].besoin))}</div>
-      <div class="card"><h3>Cotisation par commune</h3>${lineChart(yrs, membres().map((c, i) => ({ name: c.nom, color: PALETTE[i % PALETTE.length], values: yrs.map((y) => cotisDe(y, c.id)) })))}</div></div>`;
+      <div class="card"><h3>Cotisations totales par année</h3>${bars(ALL, ALL.map((y) => R[y].besoin), colors)}
+        <div class="legend" style="margin-top:6px"><span><span class="sw" style="background:#9aa5b4"></span>${H || ""} budget primitif</span><span><span class="sw" style="background:#b4232f"></span>${BASE()} budget</span><span><span class="sw" style="background:#1f4e79"></span>projection</span></div></div>
+      <div class="card"><h3>Cotisation par commune</h3>${lineChart(ALL, membres().map((c, i) => ({ name: c.nom, color: PALETTE[i % PALETTE.length], values: ALL.map((y) => cotisDe(y, c.id)) })))}
+        ${estime ? `<p class="small muted">${H} par commune : estimation (clé actuelle, effectifs ${BASE()}) – saisissez les montants réels dans « Communes & cotisations ».</p>` : ""}</div></div>`;
+
+    if (H) h += hausseCard(H, BASE());
 
     // Évolution de la cotisation par commune
-    h += `<div class="card"><h3>Évolution de la cotisation par commune</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y, i) => `<th class="n">${y}</th>${i ? `<th class="n">Évol. ${yrs[i - 1]}→${y}</th>` : ""}`).join("")}<th class="n">${first}→${last}</th></tr></thead><tbody>`;
-    const row = (lab, f, cls = "") => `<tr class="${cls}"><td>${lab}</td>${yrs.map((y, i) => `<td class="n"><b>${eur(f(y))}</b></td>${i ? `<td class="n small">${delta(f(y) - f(yrs[i - 1]))} · ${dpctTxt(f(y), f(yrs[i - 1]))}</td>` : ""}`).join("")}<td class="n">${dpctTxt(f(last), f(first))}</td></tr>`;
-    membres().forEach((c) => (h += row(`<a href="#" data-act="goCommune" data-arg="${c.id}">${esc(c.nom)}</a>`, (y) => cotisDe(y, c.id))));
+    h += `<div class="card"><h3>Évolution de la cotisation par commune</h3><div class="scroll"><table><thead><tr><th>Commune</th>${ALL.map((y, i) => `<th class="n">${lib(y)}</th>${i ? `<th class="n">Évol. ${ALL[i - 1]}→${y}</th>` : ""}`).join("")}<th class="n">${BASE()}→${last}</th></tr></thead><tbody>`;
+    const row = (label, f, cls = "", est) => `<tr class="${cls}"><td>${label}</td>${ALL.map((y, i) => `<td class="n"><b class="${y === H && est ? "histo" : ""}">${eur(f(y))}</b>${y === H && est ? "*" : ""}</td>${i ? `<td class="n small">${delta(f(y) - f(ALL[i - 1]))} · ${dpctTxt(f(y), f(ALL[i - 1]))}</td>` : ""}`).join("")}<td class="n">${dpctTxt(f(last), f(BASE()))}</td></tr>`;
+    membres().forEach((c) => {
+      const est = H && (R[H].communes.find((x) => x.id === c.id) || {}).estime;
+      h += row(`<a href="#" data-act="goCommune" data-arg="${c.id}">${esc(c.nom)}</a>`, (y) => cotisDe(y, c.id), "", est);
+    });
     h += row("Total", (y) => R[y].besoin, "tot");
-    h += `</tbody></table></div></div>`;
+    h += `</tbody></table></div>${estime ? `<p class="small muted">* ${H} : répartition estimée avec la clé et les effectifs actuels (total exact : ${eur(R[H].besoin)}). À remplacer par les montants réellement appelés.</p>` : ""}</div>`;
 
     // Par enfant
     h += `<div class="card"><h3>Cotisation par enfant scolarisé</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
@@ -146,16 +188,52 @@
       </tbody></table></div></div>`;
 
     // Équilibre
-    h += `<div class="grid g2"><div class="card"><h3>Ce qui détermine les cotisations</h3><table><thead><tr><th></th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
-      <tr><td>Dépenses de fonctionnement</td>${yrs.map((y) => `<td class="n">${eur(R[y].dep)}</td>`).join("")}</tr>
-      <tr><td>− Recettes (hors cotisations des membres)</td>${yrs.map((y) => `<td class="n">${eur(R[y].recAutres)}</td>`).join("")}</tr>
-      <tr><td>− Résultat reporté</td>${yrs.map((y) => `<td class="n">${eur(R[y].report)}</td>`).join("")}</tr>
-      <tr><td>+ Fonds de roulement visé</td>${yrs.map((y) => `<td class="n">${eur(R[y].fdr)}</td>`).join("")}</tr>
-      <tr class="tot"><td>= Cotisations des membres</td>${yrs.map((y) => `<td class="n">${eur(R[y].besoin)}</td>`).join("")}</tr>
-      </tbody></table>
-      <p class="small muted">2026 comprend des montants ponctuels (déficit reporté, virement à l'investissement, indemnités journalières) et la création d'un fonds de roulement de ${eur(R[BASE()].variationFdr)} : d'où l'écart avec les années suivantes.</p></div>
-      <div class="card"><h3>À quoi servent les cotisations ? (${BASE() + 1})</h3>${hbars(R[BASE() + 1].analytiqueVentile)}<p class="small muted">Personnel ventilé entre services selon la clé de l'onglet « Données à compléter ».</p></div></div>`;
+    h += `<div class="grid g2"><div class="card"><h3>Ce qui détermine les cotisations</h3><div class="scroll"><table><thead><tr><th></th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
+      <tr><td>Dépenses de fonctionnement</td>${ALL.map((y) => `<td class="n">${eur(R[y].dep)}</td>`).join("")}</tr>
+      <tr><td>− Recettes (hors cotisations des membres)</td>${ALL.map((y) => `<td class="n">${eur(R[y].recAutres)}</td>`).join("")}</tr>
+      <tr><td>− Résultat reporté</td>${ALL.map((y) => `<td class="n">${eur(R[y].report)}</td>`).join("")}</tr>
+      <tr><td>+ Excédent / fonds de roulement visé</td>${ALL.map((y) => `<td class="n">${eur(R[y].fdr)}</td>`).join("")}</tr>
+      <tr class="tot"><td>= Cotisations des membres</td>${ALL.map((y) => `<td class="n">${eur(R[y].besoin)}</td>`).join("")}</tr>
+      </tbody></table></div>
+      <p class="small muted">${BASE()} comprend des montants ponctuels (déficit reporté, virement à l'investissement, indemnités journalières) et la création d'un fonds de roulement de ${eur(R[BASE()].variationFdr)}.</p></div>
+      <div class="card"><h3>À quoi servent les cotisations ? (${BASE() + 1})</h3>${pieServices(R[BASE() + 1], 1, "par an")}</div></div>`;
     return h;
+  }
+
+  // D'où vient la hausse entre l'année passée (BP) et l'année de base
+  function hausseCard(H, B) {
+    const a = R[H], b = R[B];
+    const L = state.lignes;
+    const bpSum = (f) => L.filter(f).reduce((s, l) => s + (+l.bp25 || 0), 0);
+    const mtSum = (f) => L.filter(f).reduce((s, l) => s + (+((l.montants || {})[B] ?? l.montant) || 0), 0);
+    const dLines = (f) => mtSum(f) - bpSum(f);
+    const reg = (l) => l.id === "r7472";
+    const items = [
+      ["Baisse de la participation de la Région (7472)", -dLines(reg), `${eur(bpSum(reg))} → ${eur(mtSum(reg))}`],
+      ["Fin du résultat reporté de 2024", a.report - b.report, `${eur(a.report)} de report avaient réduit les cotisations ${H}`],
+      ["Autres recettes (cantine, remboursements…)", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
+      ["Charges de personnel (012)", dLines((l) => l.sens === "dep" && l.chap === "012"), ""],
+      ["Autres dépenses", dLines((l) => l.sens === "dep" && l.chap !== "012"), ""],
+      ["Excédent / fonds de roulement visé", b.fdr - a.fdr, `${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
+    ];
+    const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
+    if (Math.abs(reste) > 0.5) items.push(["Autres (transport, communes hors membre…)", reste, ""]);
+    const tot = items.reduce((s, x) => s + x[1], 0);
+    const max = Math.max(...items.map((x) => Math.abs(x[1])), 1);
+    return `<div class="card"><h3>D'où vient la hausse de ${H} à ${B} ? <span class="muted" style="font-weight:400">(${delta(b.besoin - a.besoin)}, ${dpctTxt(b.besoin, a.besoin)})</span></h3>
+      <table style="max-width:960px"><tbody>
+      <tr class="sub"><td>Cotisations ${H} (BP)</td><td></td><td class="n">${eur(a.besoin)}</td><td></td></tr>
+      ${items.map(([l, v, c]) => `<tr><td>${l}${c ? `<div class="small muted">${c}</div>` : ""}</td><td style="width:34%"><div class="track" style="height:12px;background:#f0eee8;border-radius:3px;position:relative"><div style="position:absolute;${v >= 0 ? "left:50%" : "right:50%"};width:${(Math.abs(v) / max) * 50}%;height:100%;background:${v >= 0 ? "#b4232f" : "#2a7a4f"};border-radius:3px"></div></div></td><td class="n">${delta(v)}</td><td></td></tr>`).join("")}
+      <tr class="tot"><td>Cotisations ${B}</td><td></td><td class="n">${eur(a.besoin + tot)}</td><td></td></tr></tbody></table>
+      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser. Comparaison BP ${H} / budget ${B}.</p></div>`;
+  }
+
+  // Camembert du coût net par service (div = diviseur, ex. nombre d'enfants)
+  function pieServices(d, div, unite, center) {
+    const slices = Object.entries(d.analytiqueVentile).filter(([k, v]) => v > 0.5 && k !== "FDR" && k !== "FIN").sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ label: M.CATS[k].lib, value: v / div, color: M.CATS[k].color }));
+    const tot = slices.reduce((s, x) => s + x.value, 0);
+    return `<div class="pie-main">${donut(slices, { size: 220, center: center || eur(tot), sub: unite })}${legend(slices)}</div>
+      <p class="small muted">Coût net de chaque service (dépenses − recettes propres), personnel ventilé selon la clé de l'onglet « Données à compléter ». Hors fonds de roulement et opérations financières.</p>`;
   }
 
   /* =====================================================================
@@ -173,6 +251,13 @@
       <div class="bar" style="margin:10px 0 0"><button class="btn" data-act="addCommune">+ Ajouter une commune membre</button>
       <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button>
       <label class="inl">${chkIn("checklist.enfants", state.checklist.enfants)} Effectifs vérifiés</label></div></div>`;
+    const H = state.meta.histYear;
+    if (H) {
+      h += `<div class="card"><h3>Cotisations ${H} réellement appelées</h3><p class="small muted" style="margin-top:-4px">Pour comparer avec ${H} dans la synthèse. Laissez vide pour utiliser une estimation (clé actuelle × total ${H} de ${eur(R[H].besoin)}).</p>
+        <table style="max-width:560px"><thead><tr><th>Commune</th><th class="n">Montant ${H} (€)</th><th class="n">Estimation</th></tr></thead><tbody>
+        ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n"><input class="num" inputmode="decimal" data-p="communes.${i}.cotis2025" data-t="n" data-vide="null" value="${c.cotis2025 == null || c.cotis2025 === "" ? "" : fmtIn(c.cotis2025)}" placeholder="—"></td><td class="n muted">${eur(R[H].besoin * ((R[H].communes.find((x) => x.id === c.id) || {}).share || 0))}</td></tr>`).join("")}
+        <tr class="tot"><td>Total</td><td class="n">${eur(R[H].communes.reduce((s, c) => s + c.cotis, 0))}</td><td class="n">${eur(R[H].besoin)}</td></tr></tbody></table></div>`;
+    }
     h += coutParEnfant();
     h += detailCommune();
     return h;
@@ -219,32 +304,33 @@
 
   function coutParEnfant() {
     const y = ui.year, d = R[y], moy = d.coutNetEnfant;
-    let h = `<div class="card" id="coutenfant"><h3>Coût moyen par enfant et détail par commune</h3><div class="bar">${yearSeg(y)}</div>
+    let h = `<div class="card" id="coutenfant"><h3>Coût par enfant</h3><div class="bar">${yearSeg(y)}</div>
       <div class="kpis">
       <div class="kpi"><div class="l">Coût brut par enfant</div><div class="v">${eur(d.coutBrutEnfant)}</div><div class="d">${eur(d.dep)} de dépenses ÷ ${nf0.format(d.enfTotal)} enfants</div></div>
       <div class="kpi"><div class="l">Coût net moyen par enfant</div><div class="v">${eur(moy)}</div><div class="d">après recettes propres (cantine, Région…), hors fonds de roulement</div></div>
       <div class="kpi"><div class="l">Cotisation moyenne par enfant membre</div><div class="v">${eur(d.besoin / (d.enf || 1))}</div><div class="d">${eur(d.besoin)} ÷ ${nf0.format(d.enf)} enfants des communes membres</div></div>
       <div class="kpi"><div class="l">Enfants hors membre</div><div class="v">${eur(d.horsResteMembres)}</div><div class="d">${nf0.format(d.enfHors)} enfants × ${eur(moy)}${d.recHors ? " − " + eur(d.recHors) + " facturés" : ""} : reste à la charge des membres</div></div></div>`;
-    h += `<div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Enfants</th><th class="n">Cotisation / participation</th><th class="n">Par enfant</th><th class="n">Coût moyen par enfant</th><th class="n">Écart</th><th class="n">Coût de ses enfants</th><th class="n">Payé − coût de ses enfants</th></tr></thead><tbody>`;
+
+    h += `<h3 style="margin-top:6px">Ce que coûte un enfant en ${y}, par service</h3>${pieServices(d, d.enfTotal || 1, "par enfant", eur(moy))}`;
+
+    // Un camembert par commune : part population / part enfants de sa cotisation par enfant
+    const cP = "#8a9bb0", cE = "#1f4e79";
+    h += `<h3 style="margin-top:18px">Cotisation par enfant de chaque commune en ${y}</h3>
+      <div class="legend"><span><span class="sw" style="background:${cP}"></span>part population (${nfp.format(state.cle.pop)} %)</span><span><span class="sw" style="background:${cE}"></span>part enfants (${nfp.format(state.cle.enf)} %)</span><span>· coût net moyen d'un enfant : <b>${eur(moy)}</b></span></div>
+      <div class="pies">`;
     d.communes.forEach((c) => {
-      const pe = c.enf ? c.cotis / c.enf : null, ce = c.enf * moy;
-      h += `<tr><td><a href="#" data-act="pickCommune" data-arg="${c.id}">${esc(c.nom)}</a></td><td class="n">${nf0.format(c.enf)}</td><td class="n">${eur(c.cotis)}</td>
-        <td class="n"><b>${pe == null ? "–" : eur(pe)}</b></td><td class="n">${eur(moy)}</td><td class="n">${pe == null ? "–" : (pe >= moy ? "+" : "") + pct(pe / moy - 1)}</td><td class="n">${eur(ce)}</td><td class="n">${delta(c.cotis - ce)}</td></tr>`;
+      const pe = c.enf ? c.cotis / c.enf : null;
+      h += `<div class="pie"><h4><a href="#" data-act="pickCommune" data-arg="${c.id}">${esc(c.nom)}</a></h4>
+        ${donut([{ label: "Part population", value: c.partPop, color: cP }, { label: "Part enfants", value: c.partEnf, color: cE }], { size: 150, center: pe == null ? "–" : eur(pe), sub: "par enfant" })}
+        <div class="cap">${nf0.format(c.enf)} enfant${c.enf > 1 ? "s" : ""} · cotisation ${eur(c.cotis)}<br>${pe == null ? "" : `<b class="${pe > moy ? "up" : "down"}">${pe >= moy ? "+" : ""}${pct(pe / moy - 1)}</b> vs coût moyen`}</div></div>`;
     });
     d.horsDetail.forEach((hc) => {
-      const pe = hc.enf ? hc.participation / hc.enf : null, ce = hc.enf * moy;
-      h += `<tr><td><i>${esc(hc.nom)}</i> <span class="pill ${hc.facturee ? "m" : "c"}">hors membre · ${hc.facturee ? "facturée" : "non facturée"}</span></td><td class="n">${nf0.format(hc.enf)}</td><td class="n">${eur(hc.participation)}</td><td class="n"><b>${pe == null ? "–" : eur(pe)}</b></td><td class="n">${eur(moy)}</td><td class="n">${pe == null ? "–" : pct(pe / moy - 1)}</td><td class="n">${eur(ce)}</td><td class="n">${delta(hc.participation - ce)}</td></tr>`;
+      const ce = hc.enf * moy;
+      h += `<div class="pie hors"><h4><i>${esc(hc.nom)}</i></h4>
+        ${donut([{ label: "Payé par la commune", value: hc.participation, color: "#3c9a74" }, { label: "À la charge des membres", value: Math.max(0, ce - hc.participation), color: "#d4663a" }], { size: 150, center: eur(hc.enf ? hc.participation / hc.enf : 0), sub: "payé par enfant" })}
+        <div class="cap">hors membre · ${hc.facturee ? "facturée" : "non facturée"} · ${nf0.format(hc.enf)} enfant${hc.enf > 1 ? "s" : ""}<br><span style="color:#d4663a">■</span> ${eur(Math.max(0, ce - hc.participation))} à la charge des membres</div></div>`;
     });
-    h += `<tr class="tot"><td>Total</td><td class="n">${nf0.format(d.enfTotal)}</td><td class="n">${eur(d.besoin + d.recHors)}</td><td class="n">${eur((d.besoin + d.recHors) / (d.enfTotal || 1))}</td><td class="n">${eur(moy)}</td><td></td><td class="n">${eur(d.coutNet)}</td><td class="n">${delta(d.besoin + d.recHors - d.coutNet)}</td></tr></tbody></table></div>
-      <p class="small muted">« Payé − coût de ses enfants » positif : la commune paie plus que le coût moyen de ses enfants, notamment via sa part population. Le total correspond au fonds de roulement constitué dans l'année (${eur(d.variationFdr)}).</p>`;
-
-    const cats = Object.entries(d.analytiqueVentile).filter(([, x]) => Math.abs(x) > 0.5).sort((a, b) => b[1] - a[1]).map(([k]) => k);
-    const parEnf = ui.matrice === "enf";
-    const val = (c, k) => { const x = d.analytiqueVentile[k] * c.share; return parEnf ? (c.enf ? x / c.enf : null) : x; };
-    h += `<h3 style="margin-top:18px">Détail par commune et par service ${y}</h3><div class="bar"><div class="seg"><button data-act="matrice" data-arg="eur" class="${!parEnf ? "on" : ""}">En euros</button><button data-act="matrice" data-arg="enf" class="${parEnf ? "on" : ""}">Par enfant</button></div></div>
-      <div class="scroll"><table><thead><tr><th>Commune</th>${cats.map((k) => `<th class="n"><span class="sw" style="background:${M.CATS[k].color}"></span>${M.CATS[k].lib}</th>`).join("")}<th class="n">Total</th></tr></thead><tbody>
-      ${d.communes.map((c) => `<tr><td>${esc(c.nom)}</td>${cats.map((k) => { const x = val(c, k); return `<td class="n">${x == null ? "–" : eur(x)}</td>`; }).join("")}<td class="n"><b>${parEnf ? (c.enf ? eur(c.cotis / c.enf) : "–") : eur(c.cotis)}</b></td></tr>`).join("")}
-      <tr class="tot"><td>${parEnf ? "Moyenne (membres)" : "Total"}</td>${cats.map((k) => `<td class="n">${eur(parEnf ? d.analytiqueVentile[k] / (d.enf || 1) : d.analytiqueVentile[k])}</td>`).join("")}<td class="n">${eur(parEnf ? d.besoin / (d.enf || 1) : d.besoin)}</td></tr></tbody></table></div></div>`;
+    h += `</div><p class="small muted">Chaque camembert montre la cotisation par enfant de la commune et sa composition. Une commune peuplée avec peu d'enfants scolarisés paie surtout par sa part population, d'où un coût par enfant élevé. Pour les communes hors membre : en vert la participation facturée, en orange le reste du coût de leurs enfants, payé par les membres.</p></div>`;
     return h;
   }
 
@@ -554,7 +640,7 @@
     const p = el.dataset.p;
     if (!p) return;
     const t = el.dataset.t;
-    const v = t === "n" ? parseNum(el.value) : t === "b" ? el.checked : el.value;
+    const v = el.dataset.vide === "null" && !el.value.trim() ? null : t === "n" ? parseNum(el.value) : t === "b" ? el.checked : el.value;
     if (p === "__hausse") { ui.hausse = v; return; }
     setPath(p, v);
     // Projection automatique des effectifs

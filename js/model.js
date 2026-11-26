@@ -163,13 +163,41 @@
     };
   }
 
+  /* ---------- Année passée (BP 2025, lecture seule) ----------
+     Cotisations totales et équilibre tirés du document (colonne « Prévu BP »).
+     Répartition par commune : montant saisi (cotis2025) sinon estimation avec
+     la clé actuelle et les effectifs 2026 (effectifs 2025 inconnus). */
+  function computeHisto(state) {
+    const y = state.meta.histYear, base = state.meta.baseYear;
+    if (!y) return null;
+    const bp = (l) => n(l.bp25);
+    const dep = state.lignes.filter((l) => l.sens === "dep").reduce((s, l) => s + bp(l), 0);
+    const recAutres = state.lignes.filter((l) => l.sens === "rec" && l.nature !== "report" && l.nature !== "cotisations").reduce((s, l) => s + bp(l), 0);
+    const report = bp(state.lignes.find((l) => l.nature === "report") || {});
+    const besoin = bp(state.lignes.find((l) => l.nature === "cotisations") || {});
+    const fdr = besoin - dep + recAutres + report; // excédent prévu au BP
+    const membres = state.communes.filter((c) => c.statut === "membre");
+    const popTot = membres.reduce((s, c) => s + n(c.pop), 0) || 1;
+    const enf = membres.reduce((s, c) => s + enfantsDe(c, base), 0);
+    const wP = n(state.cle.pop) / 100, wE = n(state.cle.enf) / 100;
+    const communes = membres.map((c) => {
+      const e = enfantsDe(c, base), share = wP * n(c.pop) / popTot + wE * e / (enf || 1);
+      const saisi = c.cotis2025 != null && c.cotis2025 !== "";
+      return { id: c.id, nom: c.nom, pop: n(c.pop), enf: e, share, cotis: saisi ? n(c.cotis2025) : besoin * share, estime: !saisi };
+    });
+    const chap = (sens, f) => state.lignes.filter((l) => l.sens === sens && f(l)).reduce((s, l) => s + bp(l), 0);
+    return { y, histo: true, dep, recAutres, report, fdr, variationFdr: fdr - report, besoin, popTot, enf, communes, chap };
+  }
+
   function compute(state) {
     const out = {};
+    const h = computeHisto(state);
+    if (h) out[h.y] = h;
     for (const y of state.meta.years) out[y] = computeYear(state, y);
     return out;
   }
 
-  const api = { compute, computeYear, coutService, CATS, MODES, CHAP_LIB };
+  const api = { compute, computeYear, computeHisto, coutService, CATS, MODES, CHAP_LIB };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Model = api;
 })(typeof window !== "undefined" ? window : globalThis);
