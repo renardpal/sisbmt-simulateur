@@ -2,7 +2,7 @@
 
 Simulateur du budget de fonctionnement du Syndicat intercommunal d'intérêt scolaire (siège : Thizy, 89), construit à partir du budget 2025 et de la proposition 2026.
 
-Site statique : HTML, CSS et JavaScript, sans dépendance ni compilation.
+Site statique : HTML, CSS et JavaScript, sans dépendance ni compilation, hébergé sur GitHub Pages.
 
 ## Ce que fait le simulateur
 
@@ -29,9 +29,9 @@ Cotisation(commune) = Besoin × [ 50 % × pop_commune / pop_totale + 50 % × enf
 
 ## Mise en ligne
 
-**Netlify** : glisser-déposer le dossier sur https://app.netlify.com/drop, ou connecter le dépôt GitHub (pas de commande de build, dossier de publication `/`).
+Le site est publié avec **GitHub Pages** : https://renardpal.github.io/sisbmt-simulateur/
 
-**GitHub Pages** : pousser le dossier dans un dépôt, puis aller dans *Settings → Pages → Deploy from branch → main / root*.
+Réglage : *Settings → Pages → Deploy from a branch → `main` / `(root)`*. Chaque modification fusionnée sur `main` met le site à jour en une minute environ. Il n'y a pas de compilation : les fichiers sont servis tels quels.
 
 **En local** : ouvrir `index.html` dans un navigateur.
 
