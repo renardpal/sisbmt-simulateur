@@ -299,24 +299,37 @@
     const contract = (l) => l.sens === "dep" && ["64131", "6454"].includes(l.art);
     const dReg = -dLines(reg), dTrDep = dLines(trDep), dContr = dLines(contract);
     const items = [
-      ["Transport : baisse de la Région, en partie compensée", dReg + dTrDep + dContr,
-        `Région ${delta(dReg)} · carburant et entretien du bus ${delta(dTrDep)} · personnel contractuel (64131, 6454) ${delta(dContr)}`],
-      ["Fin du résultat reporté de 2024", a.report - b.report, `${eur(a.report)} de report avaient réduit les cotisations ${H}`],
-      ["Autres recettes (cantine, remboursements…)", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
-      ["Autres charges de personnel", dLines((l) => l.sens === "dep" && l.chap === "012" && !contract(l)), ""],
+      ["Transport", dReg + dTrDep + dContr, `Transport : perte de la participation de la Région ${delta(dReg)} · carburant et entretien du bus ${delta(dTrDep)} · personnel contractuel ${delta(dContr)}`],
+      ["Fin du report 2024", a.report - b.report, `Fin du report : ${eur(a.report)} de résultat 2024 avaient réduit les cotisations ${H}`],
+      ["Autres recettes", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
+      ["Autre personnel", dLines((l) => l.sens === "dep" && l.chap === "012" && !contract(l)), ""],
       ["Autres dépenses", dLines((l) => l.sens === "dep" && l.chap !== "012" && !trDep(l)), ""],
-      ["Excédent / fonds de roulement visé", b.fdr - a.fdr, `${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
+      ["Fonds de roulement", b.fdr - a.fdr, `Fonds de roulement : ${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
     ];
     const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
-    if (Math.abs(reste) > 0.5) items.push(["Autres (communes hors membre…)", reste, ""]);
-    const tot = items.reduce((s, x) => s + x[1], 0);
-    const max = Math.max(...items.map((x) => Math.abs(x[1])), 1);
+    if (Math.abs(reste) > 0.5) items.push(["Autres", reste, ""]);
+    // Cascade : cotisations H → chaque facteur → cotisations B
+    const W = 900, Hh = 300, pl = 10, pr = 10, pt = 26, pb = 46;
+    const steps = [{ l: `${H} (BP)`, v0: 0, v1: a.besoin, c: "#9aa5b4", tot: true }];
+    let cur = a.besoin;
+    items.forEach(([l, v]) => { steps.push({ l, v0: cur, v1: cur + v, c: v >= 0 ? "#b4232f" : "#2a7a4f", d: v }); cur += v; });
+    steps.push({ l: String(B), v0: 0, v1: b.besoin, c: "#1f4e79", tot: true });
+    const max = Math.max(...steps.map((x) => Math.max(x.v0, x.v1))) * 1.06;
+    const bw = (W - pl - pr) / steps.length, y = (v) => pt + (Hh - pt - pb) * (1 - v / max);
+    let g = `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#ccc"/>`;
+    steps.forEach((st, k) => {
+      const x = pl + k * bw + bw * 0.16, w = bw * 0.68, top = y(Math.max(st.v0, st.v1)), h = Math.max(1.5, Math.abs(y(st.v0) - y(st.v1)));
+      g += `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="2" fill="${st.c}"><title>${esc(st.l)} : ${st.tot ? eur(st.v1) : (st.d >= 0 ? "+" : "−") + eur(Math.abs(st.d))}</title></rect>`;
+      if (k < steps.length - 1) g += `<line x1="${x + w}" x2="${x + bw}" y1="${y(st.v1)}" y2="${y(st.v1)}" stroke="#999" stroke-dasharray="3 2"/>`;
+      const lab = st.tot ? eur(st.v1) : `${st.d >= 0 ? "+" : "−"}${nf0.format(Math.abs(Math.round(st.d)))} €`;
+      g += `<text x="${x + w / 2}" y="${top - 6}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${st.tot ? "#333" : st.c}">${lab}</text>`;
+      const words = st.l.split(" "), mid = Math.ceil(words.length / 2), l1 = words.length > 2 ? words.slice(0, mid).join(" ") : st.l, l2 = words.length > 2 ? words.slice(mid).join(" ") : "";
+      g += `<text x="${x + w / 2}" y="${Hh - pb + 16}" font-size="11" text-anchor="middle" fill="#444">${esc(l1)}</text>${l2 ? `<text x="${x + w / 2}" y="${Hh - pb + 30}" font-size="11" text-anchor="middle" fill="#444">${esc(l2)}</text>` : ""}`;
+    });
+    const notes = items.filter((x) => x[2]).map((x) => x[2]);
     return `<div class="card"><h3>D'où vient la hausse de ${H} à ${B} ? <span class="muted" style="font-weight:400">(${delta(b.besoin - a.besoin)}, ${dpctTxt(b.besoin, a.besoin)})</span></h3>
-      <table style="max-width:960px"><tbody>
-      <tr class="sub"><td>Cotisations ${H} (BP)</td><td></td><td class="n">${eur(a.besoin)}</td><td></td></tr>
-      ${items.map(([l, v, c]) => `<tr><td>${l}${c ? `<div class="small muted">${c}</div>` : ""}</td><td style="width:34%"><div class="track" style="height:12px;background:#f0eee8;border-radius:3px;position:relative"><div style="position:absolute;${v >= 0 ? "left:50%" : "right:50%"};width:${(Math.abs(v) / max) * 50}%;height:100%;background:${v >= 0 ? "#b4232f" : "#2a7a4f"};border-radius:3px"></div></div></td><td class="n">${delta(v)}</td><td></td></tr>`).join("")}
-      <tr class="tot"><td>Cotisations ${B}</td><td></td><td class="n">${eur(a.besoin + tot)}</td><td></td></tr></tbody></table>
-      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser. Comparaison BP ${H} / budget ${B}.</p></div>`;
+      <div class="chart"><svg viewBox="0 0 ${W} ${Hh}" role="img">${g}</svg></div>
+      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser (BP ${H} → budget ${B}).<br>${notes.join("<br>")}</p></div>`;
   }
 
   // Camembert du coût net par service (div = diviseur, ex. nombre d'enfants)
