@@ -176,21 +176,23 @@
     });
     return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img">${g}</svg></div>`;
   }
-  function lineChart(labels, series, H = 240) {
+  function lineChart(labels, series, H = 240, opt = {}) {
     const W = 640, pl = 64, pr = 150, pt = 14, pb = 28;
-    const max = Math.max(1, ...series.flatMap((s) => s.values)) * 1.08;
+    const axe = opt.axe || ((v) => `${nf0.format(Math.round(v / 1000))} k€`), tip = opt.tip || eur, refs = opt.refs || [];
+    const max = Math.max(opt.min || 1, ...series.flatMap((s) => s.values), ...refs.map((r) => r.v)) * 1.08;
     const x = (i) => pl + ((W - pl - pr) * i) / Math.max(1, labels.length - 1);
     const y = (v) => pt + (H - pt - pb) * (1 - v / max);
     let g = "";
     for (let i = 0; i <= 4; i++) {
       const v = (max / 4) * i, yy = y(v);
-      g += `<line x1="${pl}" x2="${W - pr}" y1="${yy}" y2="${yy}" stroke="#eceae3"/><text x="${pl - 6}" y="${yy + 4}" font-size="10" text-anchor="end" fill="#888">${nf0.format(Math.round(v / 1000))} k€</text>`;
+      g += `<line x1="${pl}" x2="${W - pr}" y1="${yy}" y2="${yy}" stroke="#eceae3"/><text x="${pl - 6}" y="${yy + 4}" font-size="10" text-anchor="end" fill="#888">${axe(v)}</text>`;
     }
+    refs.forEach((r) => (g += `<line x1="${pl}" x2="${W - pr}" y1="${y(r.v)}" y2="${y(r.v)}" stroke="${r.color}" stroke-dasharray="4 3"/><text x="${pl + 4}" y="${y(r.v) - 3}" font-size="9.5" fill="${r.color}">${esc(r.label)}</text>`));
     labels.forEach((l, i) => (g += `<text x="${x(i)}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#444">${l}</text>`));
     const lastY = [];
     series.forEach((s) => {
       g += `<polyline fill="none" stroke="${s.color}" stroke-width="2" points="${s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}"/>`;
-      s.values.forEach((v, i) => (g += `<circle cx="${x(i)}" cy="${y(v)}" r="2.6" fill="${s.color}"><title>${esc(s.name)} ${labels[i]} : ${eur(v)}</title></circle>`));
+      s.values.forEach((v, i) => (g += `<circle cx="${x(i)}" cy="${y(v)}" r="2.6" fill="${s.color}"><title>${esc(s.name)} ${labels[i]} : ${tip(v)}</title></circle>`));
       let ly = y(s.values[s.values.length - 1]) + 4;
       while (lastY.some((p) => Math.abs(p - ly) < 11)) ly += 11;
       lastY.push(ly);
@@ -248,7 +250,6 @@
     const yrs = YEARS(), H = state.meta.histYear, ALL = H ? [H, ...yrs] : yrs;
     const first = ALL[0], last = ALL[ALL.length - 1];
     const estime = H && R[H].communes.some((c) => c.estime);
-    const lib = (y) => (y === H ? `${y} <span class="small muted">(BP)</span>` : y === BASE() ? `${y} <span class="small muted">(budget)</span>` : `${y} <span class="small muted">(projection)</span>`);
     let h = `<h2>Synthèse ${first}–${last}</h2>
     <p class="lead">Évolution des cotisations des communes membres : ${H ? `${H} (budget primitif), ` : ""}${BASE()} (budget) et la projection ${yrs[1]}–${last}. Les montants de chaque année se modifient dans les onglets ${yrs.join(", ")} ; les effectifs et la clé dans « Communes & cotisations ».</p>`;
 
@@ -262,21 +263,6 @@
         ${estime ? `<p class="small muted">${H} par commune : estimation (clé actuelle, effectifs ${BASE()}) – saisissez les montants réels dans « Communes & cotisations ».</p>` : ""}</div></div>`;
 
     if (H) h += hausseCard(H, BASE());
-
-    // Évolution de la cotisation par commune
-    h += `<div class="card"><h3>Évolution de la cotisation par commune</h3><div class="scroll"><table><thead><tr><th>Commune</th>${ALL.map((y, i) => `<th class="n">${lib(y)}</th>${i ? `<th class="n">Évol. ${ALL[i - 1]}→${y}</th>` : ""}`).join("")}<th class="n">${BASE()}→${last}</th></tr></thead><tbody>`;
-    const row = (label, f, cls = "", est) => `<tr class="${cls}"><td>${label}</td>${ALL.map((y, i) => `<td class="n"><b class="${y === H && est ? "histo" : ""}">${eur(f(y))}</b>${y === H && est ? "*" : ""}</td>${i ? `<td class="n small">${delta(f(y) - f(ALL[i - 1]))} · ${dpctTxt(f(y), f(ALL[i - 1]))}</td>` : ""}`).join("")}<td class="n">${dpctTxt(f(last), f(BASE()))}</td></tr>`;
-    membres().forEach((c) => {
-      const est = H && (R[H].communes.find((x) => x.id === c.id) || {}).estime;
-      h += row(`<a href="#" data-act="goCommune" data-arg="${c.id}">${esc(c.nom)}</a>`, (y) => cotisDe(y, c.id), "", est);
-    });
-    h += row("Total", (y) => R[y].besoin, "tot");
-    h += `</tbody></table></div>${estime ? `<p class="small muted">* ${H} : répartition estimée avec la clé et les effectifs actuels (total exact : ${eur(R[H].besoin)}). À remplacer par les montants réellement appelés.</p>` : ""}</div>`;
-
-    // Poids dans le budget communal
-    h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3><div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}<th class="n">Évol. ${first}→${last}</th></tr></thead><tbody>
-      ${membres().map((c) => `<tr><td>${esc(c.nom)}</td><td class="n">${eur(+c.budgetCommune)} <span class="small muted" title="${esc(c.budgetSource || "")}">${/estim/i.test(c.budgetSource || "") ? "(estim.)" : /2017/.test(c.budgetSource || "") ? "(2017)" : ""}</span></td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}<td class="n">${poids(first, c) != null ? `${(poids(last, c) - poids(first, c)) >= 0 ? "+" : "−"}${nfp.format(Math.abs(poids(last, c) - poids(first, c)) * 100)} pt` : "–"}</td></tr>`).join("")}
-      </tbody></table></div><p class="small muted">Cotisation au syndicat ÷ produits de fonctionnement annuels de la commune (budget constant sur la période). Budgets : recettes réelles de fonctionnement des CFU 2025. En orange au-delà de 8 %, en rouge au-delà de 15 %.</p></div>`;
 
     // Par enfant
     h += `<div class="card"><h3>Cotisation par enfant scolarisé</h3><div class="scroll"><table><thead><tr><th>Commune</th>${yrs.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
@@ -313,24 +299,37 @@
     const contract = (l) => l.sens === "dep" && ["64131", "6454"].includes(l.art);
     const dReg = -dLines(reg), dTrDep = dLines(trDep), dContr = dLines(contract);
     const items = [
-      ["Transport : baisse de la Région, en partie compensée", dReg + dTrDep + dContr,
-        `Région ${delta(dReg)} · carburant et entretien du bus ${delta(dTrDep)} · personnel contractuel (64131, 6454) ${delta(dContr)}`],
-      ["Fin du résultat reporté de 2024", a.report - b.report, `${eur(a.report)} de report avaient réduit les cotisations ${H}`],
-      ["Autres recettes (cantine, remboursements…)", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
-      ["Autres charges de personnel", dLines((l) => l.sens === "dep" && l.chap === "012" && !contract(l)), ""],
+      ["Transport", dReg + dTrDep + dContr, `Transport : perte de la participation de la Région ${delta(dReg)} · carburant et entretien du bus ${delta(dTrDep)} · personnel contractuel ${delta(dContr)}`],
+      ["Fin du report 2024", a.report - b.report, `Fin du report : ${eur(a.report)} de résultat 2024 avaient réduit les cotisations ${H}`],
+      ["Autres recettes", -dLines((l) => l.sens === "rec" && !l.nature && !reg(l)) - dLines((l) => l.sens === "rec" && l.nature === "ponctuel"), ""],
+      ["Autre personnel", dLines((l) => l.sens === "dep" && l.chap === "012" && !contract(l)), ""],
       ["Autres dépenses", dLines((l) => l.sens === "dep" && l.chap !== "012" && !trDep(l)), ""],
-      ["Excédent / fonds de roulement visé", b.fdr - a.fdr, `${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
+      ["Fonds de roulement", b.fdr - a.fdr, `Fonds de roulement : ${eur(a.fdr)} en ${H} → ${eur(b.fdr)} en ${B}`],
     ];
     const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
-    if (Math.abs(reste) > 0.5) items.push(["Autres (communes hors membre…)", reste, ""]);
-    const tot = items.reduce((s, x) => s + x[1], 0);
-    const max = Math.max(...items.map((x) => Math.abs(x[1])), 1);
+    if (Math.abs(reste) > 0.5) items.push(["Autres", reste, ""]);
+    // Cascade : cotisations H → chaque facteur → cotisations B
+    const W = 900, Hh = 300, pl = 10, pr = 10, pt = 26, pb = 46;
+    const steps = [{ l: `${H} (BP)`, v0: 0, v1: a.besoin, c: "#9aa5b4", tot: true }];
+    let cur = a.besoin;
+    items.forEach(([l, v]) => { steps.push({ l, v0: cur, v1: cur + v, c: v >= 0 ? "#b4232f" : "#2a7a4f", d: v }); cur += v; });
+    steps.push({ l: String(B), v0: 0, v1: b.besoin, c: "#1f4e79", tot: true });
+    const max = Math.max(...steps.map((x) => Math.max(x.v0, x.v1))) * 1.06;
+    const bw = (W - pl - pr) / steps.length, y = (v) => pt + (Hh - pt - pb) * (1 - v / max);
+    let g = `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#ccc"/>`;
+    steps.forEach((st, k) => {
+      const x = pl + k * bw + bw * 0.16, w = bw * 0.68, top = y(Math.max(st.v0, st.v1)), h = Math.max(1.5, Math.abs(y(st.v0) - y(st.v1)));
+      g += `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="2" fill="${st.c}"><title>${esc(st.l)} : ${st.tot ? eur(st.v1) : (st.d >= 0 ? "+" : "−") + eur(Math.abs(st.d))}</title></rect>`;
+      if (k < steps.length - 1) g += `<line x1="${x + w}" x2="${x + bw}" y1="${y(st.v1)}" y2="${y(st.v1)}" stroke="#999" stroke-dasharray="3 2"/>`;
+      const lab = st.tot ? eur(st.v1) : `${st.d >= 0 ? "+" : "−"}${nf0.format(Math.abs(Math.round(st.d)))} €`;
+      g += `<text x="${x + w / 2}" y="${top - 6}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${st.tot ? "#333" : st.c}">${lab}</text>`;
+      const words = st.l.split(" "), mid = Math.ceil(words.length / 2), l1 = words.length > 2 ? words.slice(0, mid).join(" ") : st.l, l2 = words.length > 2 ? words.slice(mid).join(" ") : "";
+      g += `<text x="${x + w / 2}" y="${Hh - pb + 16}" font-size="11" text-anchor="middle" fill="#444">${esc(l1)}</text>${l2 ? `<text x="${x + w / 2}" y="${Hh - pb + 30}" font-size="11" text-anchor="middle" fill="#444">${esc(l2)}</text>` : ""}`;
+    });
+    const notes = items.filter((x) => x[2]).map((x) => x[2]);
     return `<div class="card"><h3>D'où vient la hausse de ${H} à ${B} ? <span class="muted" style="font-weight:400">(${delta(b.besoin - a.besoin)}, ${dpctTxt(b.besoin, a.besoin)})</span></h3>
-      <table style="max-width:960px"><tbody>
-      <tr class="sub"><td>Cotisations ${H} (BP)</td><td></td><td class="n">${eur(a.besoin)}</td><td></td></tr>
-      ${items.map(([l, v, c]) => `<tr><td>${l}${c ? `<div class="small muted">${c}</div>` : ""}</td><td style="width:34%"><div class="track" style="height:12px;background:#f0eee8;border-radius:3px;position:relative"><div style="position:absolute;${v >= 0 ? "left:50%" : "right:50%"};width:${(Math.abs(v) / max) * 50}%;height:100%;background:${v >= 0 ? "#b4232f" : "#2a7a4f"};border-radius:3px"></div></div></td><td class="n">${delta(v)}</td><td></td></tr>`).join("")}
-      <tr class="tot"><td>Cotisations ${B}</td><td></td><td class="n">${eur(a.besoin + tot)}</td><td></td></tr></tbody></table>
-      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser. Comparaison BP ${H} / budget ${B}.</p></div>`;
+      <div class="chart"><svg viewBox="0 0 ${W} ${Hh}" role="img">${g}</svg></div>
+      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser (BP ${H} → budget ${B}).<br>${notes.join("<br>")}</p></div>`;
   }
 
   // Camembert du coût net par service (div = diviseur, ex. nombre d'enfants)
@@ -367,10 +366,13 @@
       <button class="btn" data-act="addHors">+ Ajouter une commune hors membre</button></div></div>`;
     {
       const ALL = state.meta.histYear ? [state.meta.histYear, ...YEARS()] : YEARS();
-      h += `<div class="card"><h3>Budget des communes et poids de la cotisation</h3><p class="small muted" style="margin-top:-4px">Recettes réelles de fonctionnement de chaque commune (budget principal, hors résultat reporté), d'après les CFU 2025. Budget supposé constant de 2025 à 2029.</p>
-        <div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement (€)</th><th>Source</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
-        ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td style="min-width:240px">${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}</tr>`).join("")}
-        </tbody></table></div></div>`;
+      const ser = membres().map((c, k) => ({ name: c.nom, color: PALETTE[k % PALETTE.length], values: ALL.map((y) => (poids(y, c) || 0) * 100) }));
+      h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3>
+        <div class="grid g2" style="align-items:start"><div>${lineChart(ALL, ser, 260, { axe: (v) => nfp.format(v) + " %", tip: (v) => nfp.format(v) + " %", min: 16, refs: [{ v: 8, color: "#c77700", label: "8 %" }, { v: 15, color: "#b4232f", label: "15 %" }] })}
+          <p class="small muted">Cotisation au syndicat ÷ recettes réelles de fonctionnement de la commune (CFU 2025, budget supposé constant).</p></div>
+        <div><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement (€)</th><th>Source</th></tr></thead><tbody>
+        ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td>${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td></tr>`).join("")}
+        </tbody></table></div></div></div>`;
     }
     h += classesCard();
     h += detailCommune();
