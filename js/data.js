@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 11,
+  version: 12,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -86,15 +86,16 @@ window.DEFAULT_STATE = {
   // Population : BANATIC (population totale regroupée en vigueur, 971 hab.).
   // budgetCommune : produits de fonctionnement annuels de la commune (budget principal),
   // pour afficher le poids de la cotisation. Source : CFU 2025 de chaque commune.
-  // Enfants : effectifs 2026 communiqués par le syndicat (31 enfants des communes
-  // membres + 6 enfants hors syndicat). 2027-2029 : recopiés de 2026, à ajuster.
+  // Enfants : 2026 = effectifs retenus pour le calcul des cotisations 2026
+  // (33 enfants des communes membres : 5/1/3/14/2/8).
+  // 2027-2029 = effectifs de la rentrée actuelle (31 enfants), à ajuster.
   communes: [
-    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 8, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, budgetCommune: 124000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
-    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 2, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, budgetCommune: 121129, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c1", nom: "Blacy", insee: "89043", pop: 100, enfants: { 2026: 5, 2027: 8, 2028: 8, 2029: 8 }, tendance: 0, budgetCommune: 124000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c2", nom: "Marmeaux", insee: "89244", pop: 88, enfants: { 2026: 1, 2027: 2, 2028: 2, 2029: 2 }, tendance: 0, budgetCommune: 121129, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
     { id: "c3", nom: "Massangis", insee: "89246", pop: 339, enfants: { 2026: 3, 2027: 3, 2028: 3, 2029: 3 }, tendance: 0, budgetCommune: 597000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
-    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 7, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, budgetCommune: 247000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
-    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 1, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, budgetCommune: 91000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
-    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 10, 2027: 10, 2028: 10, 2029: 10 }, tendance: 0, budgetCommune: 155000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c4", nom: "Montréal", insee: "89267", pop: 168, enfants: { 2026: 14, 2027: 7, 2028: 7, 2029: 7 }, tendance: 0, budgetCommune: 247000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c5", nom: "Talcy", insee: "89406", pop: 84, enfants: { 2026: 2, 2027: 1, 2028: 1, 2029: 1 }, tendance: 0, budgetCommune: 91000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
+    { id: "c6", nom: "Thizy", insee: "89412", pop: 192, enfants: { 2026: 8, 2027: 10, 2028: 10, 2029: 10 }, tendance: 0, budgetCommune: 155000, budgetSource: "CFU 2025 – recettes réelles de fonctionnement", statut: "membre" },
   ],
 
   /* ---------------- Communes hors membre ---------------- */
