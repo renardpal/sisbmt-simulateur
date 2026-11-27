@@ -248,7 +248,6 @@
     const yrs = YEARS(), H = state.meta.histYear, ALL = H ? [H, ...yrs] : yrs;
     const first = ALL[0], last = ALL[ALL.length - 1];
     const estime = H && R[H].communes.some((c) => c.estime);
-    const lib = (y) => (y === H ? `${y} <span class="small muted">(BP)</span>` : y === BASE() ? `${y} <span class="small muted">(budget)</span>` : `${y} <span class="small muted">(projection)</span>`);
     let h = `<h2>Synthèse ${first}–${last}</h2>
     <p class="lead">Évolution des cotisations des communes membres : ${H ? `${H} (budget primitif), ` : ""}${BASE()} (budget) et la projection ${yrs[1]}–${last}. Les montants de chaque année se modifient dans les onglets ${yrs.join(", ")} ; les effectifs et la clé dans « Communes & cotisations ».</p>`;
 
@@ -262,16 +261,6 @@
         ${estime ? `<p class="small muted">${H} par commune : estimation (clé actuelle, effectifs ${BASE()}) – saisissez les montants réels dans « Communes & cotisations ».</p>` : ""}</div></div>`;
 
     if (H) h += hausseCard(H, BASE());
-
-    // Évolution de la cotisation par commune
-    h += `<div class="card"><h3>Évolution de la cotisation par commune</h3><div class="scroll"><table><thead><tr><th>Commune</th>${ALL.map((y, i) => `<th class="n">${lib(y)}</th>${i ? `<th class="n">Évol. ${ALL[i - 1]}→${y}</th>` : ""}`).join("")}<th class="n">${BASE()}→${last}</th></tr></thead><tbody>`;
-    const row = (label, f, cls = "", est) => `<tr class="${cls}"><td>${label}</td>${ALL.map((y, i) => `<td class="n"><b class="${y === H && est ? "histo" : ""}">${eur(f(y))}</b>${y === H && est ? "*" : ""}</td>${i ? `<td class="n small">${delta(f(y) - f(ALL[i - 1]))} · ${dpctTxt(f(y), f(ALL[i - 1]))}</td>` : ""}`).join("")}<td class="n">${dpctTxt(f(last), f(BASE()))}</td></tr>`;
-    membres().forEach((c) => {
-      const est = H && (R[H].communes.find((x) => x.id === c.id) || {}).estime;
-      h += row(`<a href="#" data-act="goCommune" data-arg="${c.id}">${esc(c.nom)}</a>`, (y) => cotisDe(y, c.id), "", est);
-    });
-    h += row("Total", (y) => R[y].besoin, "tot");
-    h += `</tbody></table></div>${estime ? `<p class="small muted">* ${H} : répartition estimée avec la clé et les effectifs actuels (total exact : ${eur(R[H].besoin)}). À remplacer par les montants réellement appelés.</p>` : ""}</div>`;
 
     // Poids dans le budget communal
     h += `<div class="card"><h3>Poids de la cotisation dans le budget de chaque commune</h3><div class="scroll"><table><thead><tr><th>Commune</th><th class="n">Budget de fonctionnement</th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}<th class="n">Évol. ${first}→${last}</th></tr></thead><tbody>
