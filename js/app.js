@@ -1,7 +1,6 @@
 /* =====================================================================
    Interface du simulateur (vanilla JS, aucune dépendance)
-   Onglets : Synthèse · Communes & cotisations · un onglet par année ·
-   (les postes du personnel sont dans « Communes & cotisations »)
+   Onglets : Synthèse · Communes & cotisations · Personnel · un onglet par année
    ===================================================================== */
 (function () {
   const M = window.Model;
@@ -64,6 +63,11 @@
       });
       s.version = 12;
     }
+    if (s && s.version === 12) {
+      // Effectifs par classe (grille vide : rien ne change tant qu'elle n'est pas remplie)
+      if (!s.classes) s.classes = clone(window.DEFAULT_STATE.classes);
+      s.version = 13;
+    }
     return s;
   }
   function load() {
@@ -75,13 +79,43 @@
     return clone(window.DEFAULT_STATE);
   }
   let state = load();
-  let R = M.compute(state);
+
+  /* ---------------- Effectifs par classe ---------------- */
+  const NIVEAUX = ["TPS", "PS", "MS", "GS", "CP", "CE1", "CE2", "CM1", "CM2"];
+  const niveaux = () => {
+    const c = state.classes || {};
+    const a = NIVEAUX.indexOf(c.premier), b = NIVEAUX.indexOf(c.dernier);
+    return NIVEAUX.slice(a < 0 ? 1 : a, (b < 0 ? NIVEAUX.length - 1 : b) + 1);
+  };
+  const toutesCommunes = () => [...state.communes.filter((c) => c.statut === "membre"), ...(state.horsMembres || [])];
+  const grille = (id) => ((state.classes || {}).effectifs || {})[id] || {};
+  const aGrille = (id) => niveaux().some((n) => +grille(id)[n] > 0);
+  // Effectifs d'une commune à la rentrée r : chaque niveau monte d'un cran par an.
+  function projClasse(id, r) {
+    const cl = state.classes, nv = niveaux(), g = grille(id), k = r - cl.rentree;
+    const ent = (cl.entrees || {})[id] || {};
+    const par = {};
+    nv.forEach((n, i) => { par[n] = i >= k ? +g[nv[i - k]] || 0 : +ent[r - i] || 0; });
+    const total = nv.reduce((x, n) => x + par[n], 0);
+    return { par, total };
+  }
+  // Rentrée N → cotisations N+1, pour les communes dont la grille est remplie.
+  function syncClasses() {
+    const cl = state.classes;
+    if (!cl) return;
+    toutesCommunes().forEach((c) => {
+      if (!aGrille(c.id)) return;
+      YEARS().forEach((y) => { if (y - 1 >= cl.rentree) c.enfants[y] = projClasse(c.id, y - 1).total; });
+    });
+  }
   const YEARS = () => state.meta.years;
   const BASE = () => state.meta.baseYear;
-  const ui = { tab: "synthese", ceYear: BASE() + 1, ceTab: "moy", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
+  syncClasses();
+  let R = M.compute(state);
+  const ui = { tab: "synthese", clTab: "all", ceYear: BASE() + 1, ceTab: "moy", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
 
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
-  function commit() { save(); R = M.compute(state); scheduleRender(); }
+  function commit() { syncClasses(); save(); R = M.compute(state); scheduleRender(); }
 
   /* ---------------- Formatage ---------------- */
   const nf0 = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
@@ -251,6 +285,8 @@
       <tr class="sub"><td>Coût net moyen d'un enfant accueilli</td>${yrs.map((y) => `<td class="n">${eur(R[y].coutNetEnfant)}</td>`).join("")}</tr>
       </tbody></table></div></div>`;
 
+    h += coutParEnfant();
+
     // Équilibre
     h += `<div class="grid g2"><div class="card"><h3>Ce qui détermine les cotisations</h3><div class="scroll"><table><thead><tr><th></th>${ALL.map((y) => `<th class="n">${y}</th>`).join("")}</tr></thead><tbody>
       <tr><td>Dépenses de fonctionnement</td>${ALL.map((y) => `<td class="n">${eur(R[y].dep)}</td>`).join("")}</tr>
@@ -321,7 +357,7 @@
   function tabCommunes() {
     let h = `<h2>Communes & cotisations</h2>
     <p class="lead">Les cotisations couvrent le <b>besoin de financement</b> du syndicat (dépenses − recettes − résultat reporté + fonds de roulement visé). Elles sont réparties entre les communes membres selon une clé population / enfants scolarisés.</p>`;
-    h += `<div class="note"><b>Effectifs ${BASE()} : 31 enfants des communes membres + 8 enfants de communes hors membre</b> (Angely 2, Coutarnoux 2, Guillon 4). Les années suivantes (surlignées) reprennent ${BASE()} : ajustez-les. Populations : BANATIC (971 hab.).</div>`;
+    h += `<div class="note"><b>Effectifs ${BASE()} : ceux retenus pour les cotisations ${BASE()}</b> (33 enfants des communes membres). À partir de ${BASE() + 1} : effectifs de la rentrée, saisis à la main ou calculés depuis la grille « Effectifs par classe » ci-dessous. Populations : BANATIC (971 hab.).</div>`;
     h += `<div class="card"><h3>Clé de répartition</h3><div class="bar">
       <label class="inl">Part population ${numIn("cle.pop", state.cle.pop, "s", 1)} %</label>
       <label class="inl">Part enfants scolarisés ${numIn("cle.enf", state.cle.enf, "s", 1)} %</label>
@@ -336,15 +372,7 @@
         ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n">${numIn(`communes.${i}.budgetCommune`, c.budgetCommune, /estim|2017/i.test(c.budgetSource || "") ? "est" : "", 0)}</td><td style="min-width:240px">${txtIn(`communes.${i}.budgetSource`, c.budgetSource)}</td>${ALL.map((y) => `<td class="n">${poidsTxt(poids(y, c))}</td>`).join("")}</tr>`).join("")}
         </tbody></table></div></div>`;
     }
-    const H = state.meta.histYear;
-    if (H) {
-      h += `<div class="card"><h3>Cotisations ${H} réellement appelées</h3><p class="small muted" style="margin-top:-4px">Pour comparer avec ${H} dans la synthèse. Laissez vide pour utiliser une estimation (clé actuelle × total ${H} de ${eur(R[H].besoin)}).</p>
-        <table style="max-width:560px"><thead><tr><th>Commune</th><th class="n">Montant ${H} (€)</th><th class="n">Estimation</th></tr></thead><tbody>
-        ${state.communes.map((c, i) => c.statut !== "membre" ? "" : `<tr><td>${esc(c.nom)}</td><td class="n"><input class="num" inputmode="decimal" data-p="communes.${i}.cotis2025" data-t="n" data-vide="null" value="${c.cotis2025 == null || c.cotis2025 === "" ? "" : fmtIn(c.cotis2025)}" placeholder="—"></td><td class="n muted">${eur(R[H].besoin * ((R[H].communes.find((x) => x.id === c.id) || {}).share || 0))}</td></tr>`).join("")}
-        <tr class="tot"><td>Total</td><td class="n">${eur(R[H].communes.reduce((s, c) => s + c.cotis, 0))}</td><td class="n">${eur(R[H].besoin)}</td></tr></tbody></table></div>`;
-    }
-    h += postesCard();
-    h += coutParEnfant();
+    h += classesCard();
     h += detailCommune();
     return h;
   }
@@ -355,13 +383,16 @@
     const yrs = YEARS(), nxt = yrs.slice(1);
     const est = (y) => (y === BASE() ? "s" : "s est");
     const ncol = 5 + nxt.length + 1;
+    const cellEnf = (base, c, y) => aGrille(c.id) && y - 1 >= state.classes.rentree
+      ? `<td class="n" title="Calculé depuis les effectifs par classe"><b>${nf0.format(+c.enfants[y] || 0)}</b> <span class="small muted">classes</span></td>`
+      : `<td class="n">${numIn(`${base}.enfants.${y}`, c.enfants[y], est(y), 0)}</td>`;
     let h = `<p class="small muted" style="margin-top:-4px">Saisissez les effectifs ${BASE()} puis une <b>évolution par an</b> (ex. +1, −2) pour projeter ${nxt[0]}–${nxt[nxt.length - 1]} d'un coup ; corrigez ensuite chaque année si besoin (modifier ${BASE()} ou l'évolution recalcule les années suivantes).</p>
       <div class="scroll"><table><thead><tr><th>Commune</th><th>INSEE</th><th class="n">Population</th><th class="n">Enfants ${BASE()}</th><th class="n" title="Enfants en plus ou en moins chaque année">Évol./an</th>${nxt.map((y) => `<th class="n">Enfants ${y}</th>`).join("")}<th></th></tr></thead><tbody>`;
     state.communes.forEach((c, i) => {
       if (c.statut !== "membre") return;
       h += `<tr><td>${txtIn(`communes.${i}.nom`, c.nom)}</td><td style="width:80px">${txtIn(`communes.${i}.insee`, c.insee)}</td><td class="n">${numIn(`communes.${i}.pop`, c.pop, "", 0)}</td>
         <td class="n">${numIn(`communes.${i}.enfants.${BASE()}`, c.enfants[BASE()], "s", 0)}</td><td class="n">${numIn(`communes.${i}.tendance`, c.tendance || 0, "s", 1)}</td>
-        ${nxt.map((y) => `<td class="n">${numIn(`communes.${i}.enfants.${y}`, c.enfants[y], est(y), 0)}</td>`).join("")}
+        ${nxt.map((y) => cellEnf(`communes.${i}`, c, y)).join("")}
         <td><button class="btn small danger" data-act="delCommune" data-arg="${i}" title="Supprimer">✕</button></td></tr>`;
     });
     const mem = membres(), hl = state.horsMembres || [];
@@ -373,7 +404,7 @@
     hl.forEach((c, i) => {
       h += `<tr><td>${txtIn(`horsMembres.${i}.nom`, c.nom)}</td><td colspan="2"><label class="inl">${chkIn(`horsMembres.${i}.facturee`, c.facturee)} facturée</label></td>
         <td class="n">${numIn(`horsMembres.${i}.enfants.${BASE()}`, c.enfants[BASE()], "s", 0)}</td><td class="n">${numIn(`horsMembres.${i}.tendance`, c.tendance || 0, "s", 1)}</td>
-        ${nxt.map((y) => `<td class="n">${numIn(`horsMembres.${i}.enfants.${y}`, c.enfants[y], est(y), 0)}</td>`).join("")}
+        ${nxt.map((y) => cellEnf(`horsMembres.${i}`, c, y)).join("")}
         <td><button class="btn small danger" data-act="delHors" data-arg="${i}" title="Supprimer">✕</button></td></tr>`;
     });
     if (!hl.length) h += `<tr><td colspan="${ncol}" class="muted small">Aucune commune hors membre.</td></tr>`;
@@ -528,6 +559,71 @@
   }
 
   /* ---------------- Postes du personnel ---------------- */
+  function classesCard() {
+    const cl = state.classes, nv = niveaux(), r0 = cl.rentree;
+    const rentrees = YEARS().map((y) => y - 1).filter((r) => r >= r0);
+    const cs = toutesCommunes(), mem = new Set(membres().map((c) => c.id));
+    const nivOpts = Object.fromEntries(NIVEAUX.map((n) => [n, n]));
+    const pathOf = (c, n) => `classes.effectifs.${c.id}.${n}`;
+    let h = `<div class="card" id="classes"><h3>Effectifs par classe</h3>
+      <p class="small muted" style="margin-top:-4px">Saisissez les enfants de chaque commune par niveau à la rentrée ${r0}. Chaque année, les enfants montent d'un niveau ; ceux du dernier niveau quittent le syndicat et les nouveaux arrivent dans le premier niveau. Dès qu'une commune a sa grille remplie, ses effectifs à partir de ${r0 + 1} sont calculés (rentrée ${r0} → cotisations ${r0 + 1}).</p>
+      <div class="bar"><label class="inl">Premier niveau ${selIn("classes.premier", cl.premier, nivOpts)}</label>
+        <label class="inl">Dernier niveau accueilli ${selIn("classes.dernier", cl.dernier, nivOpts)}</label></div>
+      <div class="scroll"><table><thead><tr><th>Commune · rentrée ${r0}</th>${nv.map((n) => `<th class="n">${n}</th>`).join("")}<th class="n">Total</th><th class="n">Saisi pour ${r0 + 1}</th></tr></thead><tbody>`;
+    let grp = false;
+    cs.forEach((c) => {
+      if (!mem.has(c.id) && !grp) { grp = true; h += `<tr class="grp"><td colspan="${nv.length + 3}">Communes hors membre</td></tr>`; }
+      const tot = nv.reduce((x, n) => x + (+grille(c.id)[n] || 0), 0);
+      const manuel = aGrille(c.id) ? null : +c.enfants[r0 + 1] || 0;
+      h += `<tr><td>${esc(c.nom)}</td>${nv.map((n) => `<td class="n">${numIn(pathOf(c, n), grille(c.id)[n] || "", "s", 0)}</td>`).join("")}<td class="n"><b>${tot || "–"}</b></td><td class="n">${manuel == null ? `<span class="small muted">calculé</span>` : `${manuel}${tot && tot !== manuel ? ` <span class="up small">≠</span>` : ""}`}</td></tr>`;
+    });
+    const totNiv = (r, n, f = () => true) => cs.filter(f).reduce((x, c) => x + (aGrille(c.id) ? projClasse(c.id, r).par[n] : 0), 0);
+    h += `<tr class="tot"><td>Total</td>${nv.map((n) => `<td class="n">${totNiv(r0, n)}</td>`).join("")}<td class="n">${nv.reduce((x, n) => x + totNiv(r0, n), 0)}</td><td></td></tr></tbody></table></div>`;
+
+    // Nouveaux arrivants
+    const rs = rentrees.filter((r) => r > r0);
+    if (rs.length) {
+      h += `<h4 style="margin:16px 0 6px">Nouveaux élèves en ${nv[0]} (naissances, arrivées)</h4>
+        <div class="scroll"><table style="max-width:620px"><thead><tr><th>Commune</th>${rs.map((r) => `<th class="n">Rentrée ${r}</th>`).join("")}</tr></thead><tbody>
+        ${cs.map((c) => `<tr><td>${esc(c.nom)}</td>${rs.map((r) => `<td class="n">${numIn(`classes.entrees.${c.id}.${r}`, ((cl.entrees || {})[c.id] || {})[r] || "", "s", 0)}</td>`).join("")}</tr>`).join("")}
+        </tbody></table></div>`;
+    }
+
+    // Projection
+    const sel = ui.clTab === "all" || cs.some((c) => c.id === ui.clTab) ? ui.clTab : "all";
+    const f = sel === "all" ? () => true : (c) => c.id === sel;
+    const remplies = cs.filter((c) => aGrille(c.id));
+    h += `<h4 style="margin:18px 0 6px">Projection par niveau</h4>`;
+    if (!remplies.length) return h + `<p class="muted small">Remplissez la grille pour voir la projection.</p></div>`;
+    h += `<div class="bar"><div class="seg" style="flex-wrap:wrap"><button data-act="clTab" data-arg="all" class="${sel === "all" ? "on" : ""}">Toutes</button>${remplies.map((c) => `<button data-act="clTab" data-arg="${c.id}" class="${sel === c.id ? "on" : ""}">${esc(c.nom)}</button>`).join("")}</div></div>
+      <div class="scroll"><table><thead><tr><th>Rentrée</th>${nv.map((n) => `<th class="n">${n}</th>`).join("")}<th class="n">Total</th><th class="n">dont membres</th><th>Partent à la fin de l'année (${nv[nv.length - 1]})</th><th class="n">Cotisations</th></tr></thead><tbody>`;
+    rentrees.forEach((r) => {
+      const last = nv[nv.length - 1];
+      const partants = remplies.filter(f).map((c) => [c.nom, projClasse(c.id, r).par[last]]).filter(([, v]) => v > 0);
+      const tot = nv.reduce((x, n) => x + totNiv(r, n, f), 0);
+      const totM = nv.reduce((x, n) => x + totNiv(r, n, (c) => f(c) && mem.has(c.id)), 0);
+      h += `<tr><td>${r}–${r + 1}</td>${nv.map((n) => { const v = totNiv(r, n, f); return `<td class="n${n === last && v ? " up" : ""}">${v || '<span class="muted">·</span>'}</td>`; }).join("")}
+        <td class="n"><b>${tot}</b></td><td class="n">${totM}</td>
+        <td class="small">${partants.length ? partants.map(([n, v]) => `${esc(n)} ${v}`).join(", ") : '<span class="muted">aucun</span>'}</td><td class="n small">${r + 1}</td></tr>`;
+    });
+    h += `</tbody></table></div><p class="small muted">Lecture : un enfant de ${nv[0]} à la rentrée ${r0} sera en ${nv[Math.min(rentrees.length - 1, nv.length - 1)]} à la rentrée ${r0 + Math.min(rentrees.length - 1, nv.length - 1)}. Seules les communes dont la grille est remplie sont comptées.</p></div>`;
+    return h;
+  }
+
+  function tabPersonnel() {
+    const H = state.meta.histYear, yrs = YEARS(), ALL = H ? [H, ...yrs] : yrs;
+    const ls = state.lignes.filter((l) => l.sens === "dep" && l.chap === "012");
+    const val = (l, y) => (y === H ? +l.bp25 || 0 : +((l.montants || {})[y]) || 0);
+    let h = `<h2>Personnel</h2><p class="lead">Charges de personnel (chapitre 012) et répartition du temps de travail entre les services. Les montants se modifient dans les onglets ${yrs.join(", ")}.</p>`;
+    h += `<div class="kpis">${ALL.map((y, i) => { const t = ls.reduce((x, l) => x + val(l, y), 0), p = i ? ls.reduce((x, l) => x + val(l, ALL[i - 1]), 0) : 0; return `<div class="kpi"><div class="l">Personnel ${y}${y === H ? " (BP)" : ""}</div><div class="v">${eur(t)}</div><div class="d">${i ? `${delta(t - p)} vs ${ALL[i - 1]}` : "budget primitif"}</div></div>`; }).join("")}</div>`;
+    h += `<div class="card"><h3>Dépenses de personnel</h3><div class="scroll"><table><thead><tr><th>Article</th><th>Libellé</th>${ALL.map((y) => `<th class="n">${y}${y === H ? " (BP)" : ""}</th>`).join("")}</tr></thead><tbody>
+      ${ls.map((l) => `<tr><td>${esc(l.art)}</td><td>${esc(l.lib)}${l.com ? ` <span class="small muted">${esc(l.com)}</span>` : ""}</td>${ALL.map((y) => `<td class="n">${eur(val(l, y))}</td>`).join("")}</tr>`).join("")}
+      <tr class="tot"><td colspan="2">Total chapitre 012</td>${ALL.map((y) => `<td class="n">${eur(ls.reduce((x, l) => x + val(l, y), 0))}</td>`).join("")}</tr>
+      </tbody></table></div></div>`;
+    h += postesCard();
+    return h;
+  }
+
   function postesCard() {
     let h = "";
     // Postes : répartition du personnel
@@ -547,6 +643,7 @@
   const TABS = () => [
     ["synthese", "Synthèse", tabSynthese],
     ["communes", "Communes & cotisations", tabCommunes],
+    ["personnel", "Personnel", tabPersonnel],
     ...YEARS().map((y) => ["y" + y, String(y), () => tabAnnee(y)]),
   ];
   function renderNav() {
@@ -604,7 +701,8 @@
     matrice: (a) => { ui.matrice = a; render(); },
     ceYear: (a) => { ui.ceYear = +a; render(); },
     ceTab: (a) => { ui.ceTab = a; render(); },
-    goCommune: (a) => { ui.ceTab = a; ui.tab = "communes"; render(); scrollTo("coutenfant"); },
+    goCommune: (a) => { ui.ceTab = a; ui.tab = "synthese"; render(); scrollTo("coutenfant"); },
+    clTab: (a) => { ui.clTab = a; render(); },
     goDetail: (a) => { ui.year = +a; ui.tab = "communes"; render(); scrollTo("detail"); },
     addCommune: () => { state.communes.push({ id: uid("c"), nom: "Nouvelle commune membre", insee: "", pop: 100, enfants: Object.fromEntries(YEARS().map((y) => [y, 0])), tendance: 0, budgetCommune: 100000, budgetSource: "Estimation : 1 000 €/hab.", statut: "membre" }); commit(); },
     delCommune: (a) => {

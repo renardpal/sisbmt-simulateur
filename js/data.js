@@ -11,7 +11,7 @@
 // nature : ponctuel | report (calculé) | cotisations (calculé)
 
 window.DEFAULT_STATE = {
-  version: 12,
+  version: 13,
   meta: {
     nom: "SISBMT – Syndicat intercommunal d'intérêt scolaire",
     siege: "Thizy (89420)",
@@ -119,6 +119,20 @@ window.DEFAULT_STATE = {
     // en dehors des remboursements déjà inscrits en 70878 (Coutarnoux…).
     tarifHors: { 2026: 0, 2027: 1400, 2028: 1400, 2029: 1400 },
     fdr: { 2025: 0, 2026: 8054.87, 2027: 8054.87, 2028: 8054.87, 2029: 8054.87 },
+  },
+
+  /* ---------------- Effectifs par classe ---------------- */
+  // Effectifs de la rentrée « rentree », par commune et par niveau.
+  // Ils servent aux cotisations de l'année suivante (rentrée 2026 → budget 2027),
+  // puis chaque niveau monte d'un cran par an ; le dernier niveau quitte le syndicat
+  // et les « entrees » arrivent dans le premier niveau.
+  // Une commune dont la grille est vide garde ses effectifs saisis à la main.
+  classes: {
+    rentree: 2026,
+    premier: "PS",
+    dernier: "CM2",
+    effectifs: {},
+    entrees: {},
   },
 
   /* ---------------- Postes ---------------- */
