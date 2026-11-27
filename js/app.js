@@ -308,28 +308,22 @@
     ];
     const reste = b.besoin - a.besoin - items.reduce((s, x) => s + x[1], 0);
     if (Math.abs(reste) > 0.5) items.push(["Autres", reste, ""]);
-    // Cascade : cotisations H → chaque facteur → cotisations B
-    const W = 900, Hh = 300, pl = 10, pr = 10, pt = 26, pb = 46;
-    const steps = [{ l: `${H} (BP)`, v0: 0, v1: a.besoin, c: "#9aa5b4", tot: true }];
-    let cur = a.besoin;
-    items.forEach(([l, v]) => { steps.push({ l, v0: cur, v1: cur + v, c: v >= 0 ? "#b4232f" : "#2a7a4f", d: v }); cur += v; });
-    steps.push({ l: String(B), v0: 0, v1: b.besoin, c: "#1f4e79", tot: true });
-    const max = Math.max(...steps.map((x) => Math.max(x.v0, x.v1))) * 1.06;
-    const bw = (W - pl - pr) / steps.length, y = (v) => pt + (Hh - pt - pb) * (1 - v / max);
-    let g = `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#ccc"/>`;
-    steps.forEach((st, k) => {
-      const x = pl + k * bw + bw * 0.16, w = bw * 0.68, top = y(Math.max(st.v0, st.v1)), h = Math.max(1.5, Math.abs(y(st.v0) - y(st.v1)));
-      g += `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="2" fill="${st.c}"><title>${esc(st.l)} : ${st.tot ? eur(st.v1) : (st.d >= 0 ? "+" : "−") + eur(Math.abs(st.d))}</title></rect>`;
-      if (k < steps.length - 1) g += `<line x1="${x + w}" x2="${x + bw}" y1="${y(st.v1)}" y2="${y(st.v1)}" stroke="#999" stroke-dasharray="3 2"/>`;
-      const lab = st.tot ? eur(st.v1) : `${st.d >= 0 ? "+" : "−"}${nf0.format(Math.abs(Math.round(st.d)))} €`;
-      g += `<text x="${x + w / 2}" y="${top - 6}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${st.tot ? "#333" : st.c}">${lab}</text>`;
-      const words = st.l.split(" "), mid = Math.ceil(words.length / 2), l1 = words.length > 2 ? words.slice(0, mid).join(" ") : st.l, l2 = words.length > 2 ? words.slice(mid).join(" ") : "";
-      g += `<text x="${x + w / 2}" y="${Hh - pb + 16}" font-size="11" text-anchor="middle" fill="#444">${esc(l1)}</text>${l2 ? `<text x="${x + w / 2}" y="${Hh - pb + 30}" font-size="11" text-anchor="middle" fill="#444">${esc(l2)}</text>` : ""}`;
+    // Histogramme : chaque facteur, en positif (hausse) ou en négatif (baisse)
+    const W = 900, Hh = 280, pl = 10, pr = 10, pt = 24, pb = 44;
+    const vmax = Math.max(...items.map((x) => Math.max(0, x[1])), 1), vmin = Math.min(...items.map((x) => Math.min(0, x[1])), 0);
+    const span = (vmax - vmin) * 1.12, bw = (W - pl - pr) / items.length;
+    const y = (v) => pt + (Hh - pt - pb) * ((vmax * 1.06 - v) / span);
+    let g = `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#999"/>`;
+    items.forEach(([l, v], k) => {
+      const x = pl + k * bw + bw * 0.2, w = bw * 0.6, top = Math.min(y(0), y(v)), h = Math.max(1.5, Math.abs(y(v) - y(0))), col = v >= 0 ? "#b4232f" : "#2a7a4f";
+      g += `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="2" fill="${col}"><title>${esc(l)} : ${v >= 0 ? "+" : "−"}${eur(Math.abs(v))}</title></rect>`;
+      g += `<text x="${x + w / 2}" y="${v >= 0 ? top - 6 : top + h + 14}" font-size="12" font-weight="600" text-anchor="middle" fill="${col}">${v >= 0 ? "+" : "−"}${nf0.format(Math.abs(Math.round(v)))} €</text>`;
+      g += `<text x="${x + w / 2}" y="${Hh - pb + 22}" font-size="11.5" text-anchor="middle" fill="#444">${esc(l)}</text>`;
     });
     const notes = items.filter((x) => x[2]).map((x) => x[2]);
     return `<div class="card"><h3>D'où vient la hausse de ${H} à ${B} ? <span class="muted" style="font-weight:400">(${delta(b.besoin - a.besoin)}, ${dpctTxt(b.besoin, a.besoin)})</span></h3>
       <div class="chart"><svg viewBox="0 0 ${W} ${Hh}" role="img">${g}</svg></div>
-      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser (BP ${H} → budget ${B}).<br>${notes.join("<br>")}</p></div>`;
+      <p class="small muted">En rouge ce qui fait monter les cotisations, en vert ce qui les fait baisser : ${eur(a.besoin)} en ${H} (BP) → ${eur(b.besoin)} en ${B}.<br>${notes.join("<br>")}</p></div>`;
   }
 
   // Camembert du coût net par service (div = diviseur, ex. nombre d'enfants)
