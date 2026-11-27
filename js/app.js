@@ -48,6 +48,22 @@
       if (i >= 0) ps.splice(i, 1, ...clone(window.DEFAULT_STATE.postes.filter((p) => ["p2", "p5", "p6"].includes(p.id))));
       s.version = 10;
     }
+    if (s && s.version === 10) {
+      // Postes réels : plus de garderie (assurée par la CC du Serein), ajout de l'accompagnement bus
+      const ps = s.postes || [];
+      const g = ps.find((p) => p.id === "p3" && p.cat === "GAR");
+      if (!ps.length || (g && +g.heures === 15)) s.postes = clone(window.DEFAULT_STATE.postes);
+      s.version = 11;
+    }
+    if (s && s.version === 11) {
+      // Effectifs 2026 = ceux retenus pour le calcul des cotisations 2026 (5/1/3/14/2/8)
+      const anc = { c1: 8, c2: 2, c3: 3, c4: 7, c5: 1, c6: 10 };
+      (s.communes || []).forEach((c) => {
+        const d = window.DEFAULT_STATE.communes.find((x) => x.id === c.id);
+        if (d && c.enfants && +c.enfants[2026] === anc[c.id]) c.enfants[2026] = d.enfants[2026];
+      });
+      s.version = 12;
+    }
     return s;
   }
   function load() {
