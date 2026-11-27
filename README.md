@@ -6,9 +6,10 @@ Site statique : HTML, CSS et JavaScript, sans dépendance ni compilation, héber
 
 | Onglet | Contenu |
 |---|---|
-| **Synthèse** | Cotisations 2025 (BP) à 2029, origine de la hausse 2025 → 2026, évolution par commune, poids de la cotisation dans le budget de chaque commune, cotisation par enfant |
-| **Communes & cotisations** | Clé de répartition (50/50), effectifs par commune et par année, communes hors membre, budget de chaque commune, postes du personnel, coût par enfant (camemberts), calcul pas à pas de chaque cotisation |
-| **2026 · 2027 · 2028 · 2029** | Le budget de l'année, ligne par ligne. 2026 = proposition d'origine ; les années suivantes sont pré-remplies avec les montants 2026 (lignes ponctuelles à 0) et se modifient directement |
+| **Synthèse** | Cotisations 2025 (BP) à 2029, courbes par commune, origine de la hausse 2025 → 2026 (cascade), cotisation et coût par enfant (camemberts) |
+| **Communes & cotisations** | Clé de répartition (50/50), effectifs par commune et par année, communes hors membre, poids de la cotisation dans le budget de chaque commune, effectifs par classe et projection par niveau, calcul pas à pas de chaque cotisation |
+| **Personnel** | Charges de personnel (chapitre 012) modifiables pour chaque année, répartition des postes entre services |
+| **Budget** | Un sous-onglet par année (2026 à 2029) : le budget ligne par ligne. 2026 = proposition d'origine ; les années suivantes sont pré-remplies avec les montants 2026 (lignes ponctuelles à 0) et se modifient directement |
 
 ### Calcul des cotisations
 
