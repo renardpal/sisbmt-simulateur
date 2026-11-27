@@ -1,6 +1,6 @@
 /* =====================================================================
    Interface du simulateur (vanilla JS, aucune dépendance)
-   Onglets : Synthèse · Communes & cotisations · Personnel · un onglet par année
+   Onglets : Synthèse · Communes & cotisations · Personnel · Budget (un sous-onglet par année)
    ===================================================================== */
 (function () {
   const M = window.Model;
@@ -112,7 +112,7 @@
   const BASE = () => state.meta.baseYear;
   syncClasses();
   let R = M.compute(state);
-  const ui = { tab: "synthese", clTab: "all", ceYear: BASE() + 1, ceTab: "moy", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
+  const ui = { tab: "synthese", budgetYear: BASE(), clTab: "all", ceYear: BASE() + 1, ceTab: "moy", year: BASE() + 1, commune: (state.communes[0] || {}).id, matrice: "eur", hausse: 2 };
 
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
   function commit() { syncClasses(); save(); R = M.compute(state); scheduleRender(); }
@@ -251,7 +251,7 @@
     const first = ALL[0], last = ALL[ALL.length - 1];
     const estime = H && R[H].communes.some((c) => c.estime);
     let h = `<h2>Synthèse ${first}–${last}</h2>
-    <p class="lead">Évolution des cotisations des communes membres : ${H ? `${H} (budget primitif), ` : ""}${BASE()} (budget) et la projection ${yrs[1]}–${last}. Les montants de chaque année se modifient dans les onglets ${yrs.join(", ")} ; les effectifs et la clé dans « Communes & cotisations ».</p>`;
+    <p class="lead">Évolution des cotisations des communes membres : ${H ? `${H} (budget primitif), ` : ""}${BASE()} (budget) et la projection ${yrs[1]}–${last}. Les montants de chaque année se modifient dans l'onglet « Budget » (et le personnel dans « Personnel ») ; les effectifs et la clé dans « Communes & cotisations ».</p>`;
 
     h += `<div class="kpis">${ALL.map((y, i) => `<div class="kpi"><div class="l">Cotisations ${y}${y === H ? " (BP)" : y > BASE() ? " (projection)" : ""}</div><div class="v">${eur(R[y].besoin)}</div><div class="d">${i ? `${delta(R[y].besoin - R[ALL[i - 1]].besoin)} (${dpctTxt(R[y].besoin, R[ALL[i - 1]].besoin)}) vs ${ALL[i - 1]}` : "budget primitif " + y}</div></div>`).join("")}</div>`;
 
@@ -493,6 +493,10 @@
   /* =====================================================================
      ONGLET D'UNE ANNÉE
      ===================================================================== */
+  function tabBudget() {
+    if (!YEARS().includes(ui.budgetYear)) ui.budgetYear = BASE();
+    return `<div class="bar noprint" style="margin-bottom:14px"><div class="seg">${YEARS().map((yy) => `<button data-act="budgetYear" data-arg="${yy}" class="${yy === ui.budgetYear ? "on" : ""}">${yy}</button>`).join("")}</div></div>` + tabAnnee(ui.budgetYear);
+  }
   function tabAnnee(y) {
     const d = R[y], isBase = y === BASE(), p = isBase ? null : R[y - 1];
     let h = `<h2>Budget ${y}</h2>
@@ -616,10 +620,10 @@
     const H = state.meta.histYear, yrs = YEARS(), ALL = H ? [H, ...yrs] : yrs;
     const ls = state.lignes.filter((l) => l.sens === "dep" && l.chap === "012");
     const val = (l, y) => (y === H ? +l.bp25 || 0 : +((l.montants || {})[y]) || 0);
-    let h = `<h2>Personnel</h2><p class="lead">Charges de personnel (chapitre 012) et répartition du temps de travail entre les services. Les montants se modifient dans les onglets ${yrs.join(", ")}.</p>`;
+    let h = `<h2>Personnel</h2><p class="lead">Charges de personnel (chapitre 012) et répartition du temps de travail entre les services. Modifiez les montants de ${yrs.join(", ")} ici : le budget de chaque année, les cotisations et la synthèse se mettent à jour.</p>`;
     h += `<div class="kpis">${ALL.map((y, i) => { const t = ls.reduce((x, l) => x + val(l, y), 0), p = i ? ls.reduce((x, l) => x + val(l, ALL[i - 1]), 0) : 0; return `<div class="kpi"><div class="l">Personnel ${y}${y === H ? " (BP)" : ""}</div><div class="v">${eur(t)}</div><div class="d">${i ? `${delta(t - p)} vs ${ALL[i - 1]}` : "budget primitif"}</div></div>`; }).join("")}</div>`;
     h += `<div class="card"><h3>Dépenses de personnel</h3><div class="scroll"><table><thead><tr><th>Article</th><th>Libellé</th>${ALL.map((y) => `<th class="n">${y}${y === H ? " (BP)" : ""}</th>`).join("")}</tr></thead><tbody>
-      ${ls.map((l) => `<tr><td>${esc(l.art)}</td><td>${esc(l.lib)}${l.com ? ` <span class="small muted">${esc(l.com)}</span>` : ""}</td>${ALL.map((y) => `<td class="n">${eur(val(l, y))}</td>`).join("")}</tr>`).join("")}
+      ${ls.map((l) => { const i = state.lignes.indexOf(l); return `<tr><td>${esc(l.art)}</td><td>${esc(l.lib)}${l.com ? ` <span class="small muted">${esc(l.com)}</span>` : ""}</td>${ALL.map((y) => `<td class="n">${y === H ? `<span class="muted">${eur(val(l, y))}</span>` : numIn(`lignes.${i}.montants.${y}`, val(l, y))}</td>`).join("")}</tr>`; }).join("")}
       <tr class="tot"><td colspan="2">Total chapitre 012</td>${ALL.map((y) => `<td class="n">${eur(ls.reduce((x, l) => x + val(l, y), 0))}</td>`).join("")}</tr>
       </tbody></table></div></div>`;
     h += postesCard();
@@ -646,7 +650,7 @@
     ["synthese", "Synthèse", tabSynthese],
     ["communes", "Communes & cotisations", tabCommunes],
     ["personnel", "Personnel", tabPersonnel],
-    ...YEARS().map((y) => ["y" + y, String(y), () => tabAnnee(y)]),
+    ["budget", "Budget", tabBudget],
   ];
   function renderNav() {
     document.getElementById("tabs").innerHTML = TABS().map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${ui.tab === k ? "active" : ""}">${l}</button>`).join("");
@@ -699,6 +703,7 @@
   const scrollTo = (id) => { const d = document.getElementById(id); if (d) d.scrollIntoView({ behavior: "smooth" }); };
   const ACTIONS = {
     tab: (a) => { ui.tab = a; render(); window.scrollTo(0, 0); },
+    budgetYear: (a) => { ui.budgetYear = +a; render(); },
     year: (a) => { ui.year = +a; render(); },
     matrice: (a) => { ui.matrice = a; render(); },
     ceYear: (a) => { ui.ceYear = +a; render(); },
